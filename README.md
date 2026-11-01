@@ -20,11 +20,19 @@ A complete gym management app: members (with **photos**), plans, fees & balances
 - **Member photos** — upload, drag-and-drop, or take a photo with the phone camera. Photos are resized server-side and shown everywhere a member appears (lists, dashboard, reminders…).
 - **Member detail** — plan progress, fee status, payment history with receipt numbers, edit details, renew plan, collect balance, change/remove photo.
 - **Fees** — pending list sorted by balance, part-payments, cash / UPI / card / bank split.
-- **WhatsApp reminders** — pick renewal-due / fee-pending / expired members, English or தமிழ் templates (editable), live preview, one-click send, history of what was sent and who paid afterwards.
+- **WhatsApp reminders** — pick renewal-due / fee-pending / expired members, English or தமிழ் templates (editable in one-click mode), live preview, one-click or automatic send, history of what was sent and who paid afterwards.
 - **Plans & settings** — edit plans and prices, gym details, reminder method. Light & dark theme.
 
-> **Reminders are one-click, not automatic.** Each press opens WhatsApp (`wa.me`) with the message ready; you press send.
-> Fully automatic sending needs a WhatsApp Business API provider and is **not** implemented (the option is shown as "Coming soon").
+### WhatsApp reminders: one-click or fully automatic
+
+- **One-click (default, free):** each press opens WhatsApp (`wa.me`) with the message ready; you press send.
+- **Fully automatic:** uses the **WhatsApp Business Cloud API** (Meta). Put the credentials in `.env`:
+  `WHATSAPP_ACCESS_TOKEN` and `WHATSAPP_PHONE_NUMBER_ID` (see `.env.example`), restart, then choose
+  *Fully automatic* in **Plans & settings**. The Reminders page then sends to everyone selected in one click, and the
+  reminder rules (before expiry / on expiry / fee balance) run once a day without duplicates.
+  Business-initiated messages must use **pre-approved templates** — the app lists the exact template names and bodies
+  to create in Meta (*Plans & settings → setup guide*). Try it safely first with `WHATSAPP_DRY_RUN=true`.
+  Credentials live only in the environment, never in the database or the repo.
 
 ## Run with Docker (recommended)
 
@@ -88,6 +96,8 @@ DB/              SQLite database + member photos (git-ignored)
 | `CORS_ORIGINS`| backend   | `localhost:5173,8080`  | Allowed browser origins (dev only)        |
 | `WEB_PORT`    | compose   | `8080`                 | Host port for the UI                      |
 | `PUID`/`PGID` | compose   | `1000`                 | User the backend runs as                  |
+| `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` | backend | – | Enable automatic WhatsApp sending |
+| `WHATSAPP_DRY_RUN`, `WHATSAPP_API_VERSION`, `AUTO_REMINDER_HOUR` | backend | `false`, `v23.0`, `9` | Test mode, Graph API version, daily run hour |
 
 ## Customising the home page
 

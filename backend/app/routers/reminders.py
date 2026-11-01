@@ -7,50 +7,11 @@ from sqlalchemy.orm import Session, selectinload
 from .. import services as svc
 from ..database import get_db
 from ..models import Member, ReminderLog
-from ..schemas import ReminderLogIn
+from ..schemas import ReminderLogIn, SendRemindersIn
+from ..templates import TEMPLATES
+from .. import automation, whatsapp
 
 router = APIRouter(prefix="/api/reminders", tags=["reminders"])
-
-TEMPLATES = {
-    "en": {
-        "renewal": (
-            "Hi {name}, your {plan} membership at {gym} ends on {date}.\n"
-            "Renew before then to keep training without a break.\n"
-            "Reply here or visit the front desk to renew."
-        ),
-        "fee": (
-            "Hi {name}, a balance of ₹{amount} is pending for your {plan} plan at {gym}.\n"
-            "Please pay at the desk or by UPI.\nThank you!"
-        ),
-        "expired": (
-            "Hi {name}, your {plan} membership at {gym} ended on {date}.\n"
-            "We miss you! Renew this week and get back on track."
-        ),
-        "welcome": (
-            "Welcome to {gym}, {name}! 💪\nYour {plan} membership is active till {date}.\n"
-            "See you at the gym!"
-        ),
-        "receipt": "Hi {name}, we received ₹{amount} for your {plan} plan at {gym}. Thank you!",
-    },
-    "ta": {
-        "renewal": (
-            "வணக்கம் {name}, {gym}-ல் உங்கள் {plan} உறுப்பினர் காலம் {date} அன்று முடிகிறது.\n"
-            "இடைவெளி இல்லாமல் பயிற்சியைத் தொடர, அதற்கு முன் புதுப்பித்துக் கொள்ளுங்கள்."
-        ),
-        "fee": (
-            "வணக்கம் {name}, உங்கள் {plan} திட்டத்திற்கு ₹{amount} நிலுவையில் உள்ளது.\n"
-            "தயவுசெய்து கவுண்டரில் அல்லது UPI மூலம் செலுத்தவும். நன்றி!"
-        ),
-        "expired": (
-            "வணக்கம் {name}, {gym}-ல் உங்கள் {plan} உறுப்பினர் காலம் {date} அன்று முடிந்தது.\n"
-            "இந்த வாரம் புதுப்பித்து மீண்டும் பயிற்சியைத் தொடங்குங்கள்!"
-        ),
-        "welcome": (
-            "{gym}-க்கு வரவேற்கிறோம் {name}! 💪\nஉங்கள் {plan} உறுப்பினர் காலம் {date} வரை உள்ளது."
-        ),
-        "receipt": "வணக்கம் {name}, உங்கள் {plan} திட்டத்திற்கு ₹{amount} பெற்றோம். நன்றி!",
-    },
-}
 
 LABELS = {
     "renewal": "Renewal due",
@@ -144,3 +105,31 @@ def history(limit: int = 12, location_id: int | None = None, db: Session = Depen
         if any(p.paid_on >= log.sent_on for p in log.member.payments):
             g["paid_after"] += 1
     return sorted(groups.values(), key=lambda g: g["date"], reverse=True)[:limit]
+
+
+@router.get("/whatsapp-guide")
+def whatsapp_guide():
+    """Template names/bodies to create in Meta WhatsApp Manager so automatic sending matches our placeholders."""
+    return {"available": whatsapp.available(), "dry_run": whatsapp.dry_run(), "templates": whatsapp.guide(TEMPLATES)}
+
+
+@router.post("/send")
+def send_reminders(body: SendRemindersIn, db: Session = Depends(get_db)):
+    if not whatsapp.available():
+        raise HTTPException(409, "Automatic sending is not configured (add WhatsApp credentials to .env)")
+    settings = svc.get_settings(db)
+    lang = body.lang or settings["reminder_language"]
+    results = automation.send_to_members(db, body.member_ids, body.kind, lang, settings)
+    return {
+        "sent": sum(r["ok"] for r in results),
+        "failed": sum(not r["ok"] for r in results),
+        "results": results,
+    }
+
+
+@router.post("/auto-run")
+def run_automatic_now(db: Session = Depends(get_db)):
+    """Run today's automatic reminder rules immediately (the same job the daily scheduler runs)."""
+    if not whatsapp.available():
+        raise HTTPException(409, "Automatic sending is not configured (add WhatsApp credentials to .env)")
+    return automation.run_auto(db, svc.get_settings(db))

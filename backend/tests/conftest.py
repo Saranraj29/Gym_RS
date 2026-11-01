@@ -6,6 +6,7 @@ from pathlib import Path
 _tmp = tempfile.mkdtemp(prefix="gym_rs_test_")
 os.environ["DB_DIR"] = _tmp
 os.environ["SEED_DEMO"] = "false"
+os.environ["AUTO_REMINDERS"] = "false"
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402

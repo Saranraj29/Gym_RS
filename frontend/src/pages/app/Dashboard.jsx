@@ -6,7 +6,7 @@ import { useFetch } from '../../hooks'
 import { useApp } from '../../context'
 import { Avatar, Empty, ErrorBanner, Skeleton, useToast } from '../../components/ui'
 import { daysLabel, fmtDate, inr, longDate } from '../../utils'
-import { sendOne } from '../../reminders'
+import { sendOne, sentToast } from '../../reminders'
 
 const PLAN_COLORS = ['#8b5cf6', '#f472b6', '#22d3ee', '#fbbf24', '#34d399']
 
@@ -38,8 +38,7 @@ export default function Dashboard() {
   const toast = useToast()
 
   const remind = async (m) => {
-    await sendOne({ member: m, kind: 'renewal', templates, settings })
-    toast.success(`WhatsApp opened for ${m.name}`)
+    sentToast(toast, m, await sendOne({ member: m, kind: 'renewal', templates, settings }))
   }
 
   const s = data?.stats

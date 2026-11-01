@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Database, MapPin, Pencil, Phone, Plus, Trash2 } from 'lucide-react'
+import { Copy, Database, MapPin, Pencil, Phone, Play, Plus, Trash2 } from 'lucide-react'
 import { api } from '../../api'
 import { useFetch } from '../../hooks'
 import { useApp } from '../../context'
@@ -72,14 +72,16 @@ export default function Settings() {
   const [del, setDel] = useState(null)
   const [locModal, setLocModal] = useState(null)
   const [locDel, setLocDel] = useState(null)
+  const [running, setRunning] = useState(false)
+  const guide = useFetch(() => api.whatsappGuide(), [])
 
   useEffect(() => { if (settings && f === null && settings.whatsapp_number !== undefined) setF({ ...settings }) }, [settings, f])
 
   const save = async () => {
     setBusy(true)
     try {
-      const { gym_name, whatsapp_number, address, upi_id, country_code, reminder_method, rule_before_expiry, rule_on_expiry, rule_fee_balance } = f
-      await api.saveSettings({ gym_name, whatsapp_number, address, upi_id, country_code, reminder_method, rule_before_expiry, rule_on_expiry, rule_fee_balance })
+      const { gym_name, whatsapp_number, address, upi_id, country_code, reminder_method, reminder_language, rule_before_expiry, rule_on_expiry, rule_fee_balance } = f
+      await api.saveSettings({ gym_name, whatsapp_number, address, upi_id, country_code, reminder_method, reminder_language, rule_before_expiry, rule_on_expiry, rule_fee_balance })
       reloadSettings()
       toast.success('Settings saved')
     } catch (e) { toast.error(e.message) }
@@ -91,6 +93,16 @@ export default function Settings() {
   const removeLocation = async () => {
     try { await api.deleteLocation(locDel.id); toast.success(`${locDel.name} removed`); setLocDel(null); reloadLocations() } catch (e) { toast.error(e.message); setLocDel(null) }
   }
+  const runNow = async () => {
+    setRunning(true)
+    try {
+      const r = await api.runAutoReminders()
+      toast.success(`Automatic run: ${r.sent} sent, ${r.failed} failed`)
+      if (r.errors.length) toast.error(r.errors[0])
+    } catch (e) { toast.error(e.message) }
+    setRunning(false)
+  }
+  const copy = (text) => navigator.clipboard?.writeText(text).then(() => toast.success('Copied')).catch(() => {})
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
 
   return (
@@ -159,10 +171,15 @@ export default function Settings() {
                 <input type="radio" name="method" checked={f.reminder_method === 'click'} onChange={() => setF({ ...f, reminder_method: 'click' })} />
                 <span><b>One-click send (free)</b><small>Opens WhatsApp with the message already typed for each member. You just press send.</small></span>
               </label>
-              <label className="radio-card disabled">
-                <input type="radio" name="method" disabled />
-                <span><b>Fully automatic (WhatsApp Business API) <span className="chip info plain" style={{ marginLeft: 6 }}>Coming soon</span></b><small>Messages go out on their own at the set time. Needs a WhatsApp Business API provider and has a small per-message cost.</small></span>
+              <label className={'radio-card' + (settings.whatsapp_api_available ? '' : ' disabled')}>
+                <input type="radio" name="method" disabled={!settings.whatsapp_api_available} checked={f.reminder_method === 'api'} onChange={() => setF({ ...f, reminder_method: 'api' })} />
+                <span><b>Fully automatic (WhatsApp Business API) {!settings.whatsapp_api_available && <span className="chip info plain" style={{ marginLeft: 6 }}>Not connected</span>}{settings.whatsapp_dry_run && <span className="chip warn plain" style={{ marginLeft: 6 }}>Dry-run</span>}</b>
+                  <small>Messages go out on their own — one click on the Reminders page, plus a daily run of the rules below. Needs a WhatsApp Business API number and has a small per-message cost.</small>
+                  {!settings.whatsapp_api_available && <small style={{ display: 'block', marginTop: 6 }}>To connect: put <code>WHATSAPP_ACCESS_TOKEN</code> and <code>WHATSAPP_PHONE_NUMBER_ID</code> in your <code>.env</code> and restart (see the setup guide below).</small>}
+                </span>
               </label>
+              <div className="field"><label htmlFor="g-lang">Language for automatic messages</label>
+                <select id="g-lang" className="select" value={f.reminder_language} onChange={set('reminder_language')}><option value="en">English</option><option value="ta">தமிழ்</option></select></div>
             </section>
             <section className="card form-sec">
               <h2>Reminder rules</h2>
@@ -176,11 +193,37 @@ export default function Settings() {
                   <span className="switch"><input type="checkbox" checked={!!f[key]} onChange={(e) => setF({ ...f, [key]: e.target.checked })} /><i /></span>
                 </label>
               ))}
-              <p style={{ fontSize: 13, color: 'var(--faint)' }}>Rules are saved now and take effect once automatic sending is connected. In one-click mode, use the WhatsApp reminders page.</p>
+              <p style={{ fontSize: 13, color: 'var(--faint)' }}>Rules run once a day (around 9 AM, server time) when <b>Fully automatic</b> is on — nobody is messaged twice. In one-click mode, use the WhatsApp reminders page.</p>
+              <button className="btn btn-ghost btn-sm" onClick={runNow} disabled={running || !settings.whatsapp_api_available || f.reminder_method !== 'api'} title="Save settings first"><Play /> {running ? 'Running…' : 'Run today’s rules now'}</button>
             </section>
           </div>
         </div>
       )}
+
+      <section className="card form-sec" aria-label="WhatsApp setup guide">
+        <h2>WhatsApp automatic sending — setup guide</h2>
+        <ol style={{ margin: 0, paddingLeft: 20, color: 'var(--muted)', display: 'grid', gap: 6 }}>
+          <li>In <b>Meta Business Suite</b>, set up a WhatsApp Business Account and add your sending number (WhatsApp Cloud API).</li>
+          <li>Create a <b>System User</b> access token with <code>whatsapp_business_messaging</code> permission, and copy your <b>Phone number ID</b>.</li>
+          <li>Put them in <code>.env</code> (never in the code): <code>WHATSAPP_ACCESS_TOKEN=…</code> and <code>WHATSAPP_PHONE_NUMBER_ID=…</code>, then restart. Add <code>WHATSAPP_DRY_RUN=true</code> to try everything without sending.</li>
+          <li>In WhatsApp Manager create the <b>message templates</b> below with exactly these names, languages and bodies, and wait for approval. Messages to people who haven’t written to you in the last 24 hours can only be approved templates.</li>
+        </ol>
+        <div className="table-wrap">
+          <table className="table">
+            <thead><tr><th>Template name</th><th>Language</th><th>Category</th><th>Body</th><th /></tr></thead>
+            <tbody>
+              {(guide.data?.templates || []).map((t) => (
+                <tr key={t.name + t.language}>
+                  <td><code>{t.name}</code></td><td>{t.language}</td><td>{t.category.toLowerCase()}</td>
+                  <td style={{ whiteSpace: 'pre-wrap', minWidth: 280, color: 'var(--muted)' }}>{t.body}<small style={{ display: 'block', marginTop: 6, color: 'var(--faint)' }}>{t.params.map((p, i) => `{{${i + 1}}} = ${p}`).join(' · ')}</small></td>
+                  <td className="right"><button className="btn btn-ghost btn-sm" onClick={() => copy(t.body)} aria-label={`Copy ${t.name} body`}><Copy /></button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p style={{ fontSize: 13, color: 'var(--faint)' }}>Placeholders: {'{{1}}'}, {'{{2}}'}… are filled with the member’s details in the order shown. Meta decides each template’s final category; marketing-category templates cost more and have extra limits.</p>
+      </section>
 
       <section className="card card-body" style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
         <span className="kpi-ico violet"><Database size={20} /></span>

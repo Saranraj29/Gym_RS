@@ -76,6 +76,13 @@ class SettingsIn(BaseModel):
     rule_before_expiry: bool | None = None
     rule_on_expiry: bool | None = None
     rule_fee_balance: bool | None = None
+    reminder_language: str | None = Field(default=None, pattern="^(en|ta)$")
+
+
+class SendRemindersIn(BaseModel):
+    member_ids: list[int] = Field(min_length=1, max_length=500)
+    kind: str = Field(pattern="^(renewal|fee|expired|welcome|receipt)$")
+    lang: str | None = Field(default=None, pattern="^(en|ta)$")
 
 
 class ReminderLogIn(BaseModel):

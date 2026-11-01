@@ -5,7 +5,8 @@ import { api } from '../../api'
 import { useFetch } from '../../hooks'
 import { useApp } from '../../context'
 import { ErrorBanner, PhotoPicker, useToast } from '../../components/ui'
-import { MODES, fillTemplate, fmtDate, inr, todayISO, waLink } from '../../utils'
+import { apiMode, notifyAfterSave } from '../../reminders'
+import { MODES, fillTemplate, fmtDate, inr, todayISO } from '../../utils'
 
 const BATCHES = ['6 – 7 AM', '7 – 8 AM', '6 – 7 PM', '7 – 8 PM']
 
@@ -57,15 +58,14 @@ export default function AddMember() {
       return
     }
     setBusy(true); setServerErr(null)
-    const win = welcome ? window.open('about:blank', '_blank') : null
+    const win = welcome && !apiMode(settings) ? window.open('about:blank', '_blank') : null
     try {
       const body = Object.fromEntries(Object.entries(f).map(([k, v]) => [k, v === '' ? null : v]))
       const m = await api.createMember({ ...body, location_id: locId, plan_id: plan.id, paid_amount: paidNum, payment_mode: mode })
       if (photo) await api.uploadPhoto(m.id, photo).catch(() => toast.error('Member saved, but the photo could not be uploaded'))
-      if (win) {
+      if (welcome) {
         const text = fillTemplate(templates?.en?.welcome || '', { name: m.name, plan: plan.name, date: fmtDate(m.end_date, false), gym: settings.gym_name })
-        win.location.href = waLink(m.phone, settings.country_code, text)
-        api.logReminders({ member_ids: [m.id], kind: 'welcome', message: text }).catch(() => {})
+        await notifyAfterSave({ settings, templates, member: m, kind: 'welcome', text, win, toast })
       }
       toast.success(`${m.name} added`)
       nav(`/app/members/${m.id}`)
@@ -146,7 +146,7 @@ export default function AddMember() {
             <div className="stat-line"><span>Balance</span><b className={'num ' + (balance > 0 ? 'pending' : 'ok')}>{balance > 0 ? `${inr(balance)} pending` : 'Fully paid'}</b></div>
           </div>
           <label className="toggle-row light">
-            <span><b><MessageCircle size={15} style={{ verticalAlign: -2 }} /> Welcome message</b><small>Open WhatsApp after saving</small></span>
+            <span><b><MessageCircle size={15} style={{ verticalAlign: -2 }} /> Welcome message</b><small>{apiMode(settings) ? 'Sent automatically after saving' : 'Open WhatsApp after saving'}</small></span>
             <span className="switch"><input type="checkbox" checked={welcome} onChange={(e) => setWelcome(e.target.checked)} /><i /></span>
           </label>
           <button className="btn btn-lg btn-white" disabled={busy}>{busy ? 'Saving…' : 'Save member'}</button>

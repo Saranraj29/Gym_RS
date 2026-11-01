@@ -8,6 +8,11 @@ services:
     environment:
       DB_DIR: /data
       SEED_DEMO: "${SEED_DEMO:-true}"
+      WHATSAPP_ACCESS_TOKEN: "${WHATSAPP_ACCESS_TOKEN:-}"
+      WHATSAPP_PHONE_NUMBER_ID: "${WHATSAPP_PHONE_NUMBER_ID:-}"
+      WHATSAPP_API_VERSION: "${WHATSAPP_API_VERSION:-v23.0}"
+      WHATSAPP_DRY_RUN: "${WHATSAPP_DRY_RUN:-false}"
+      AUTO_REMINDER_HOUR: "${AUTO_REMINDER_HOUR:-9}"
       CORS_ORIGINS: "http://localhost:5173"
     volumes:
       - ./DB:/data

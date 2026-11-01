@@ -5,8 +5,8 @@ import { api } from '../../api'
 import { useFetch } from '../../hooks'
 import { useApp } from '../../context'
 import { Avatar, Empty, ErrorBanner, Modal, Skeleton, StatusChip, downscale, useToast } from '../../components/ui'
-import { INACTIVE_REASONS, MODES, daysLabel, fmtDate, inr, todayISO, waLink, fillTemplate } from '../../utils'
-import { kindFor, messageFor, sendOne } from '../../reminders'
+import { INACTIVE_REASONS, MODES, daysLabel, fmtDate, inr, todayISO, fillTemplate } from '../../utils'
+import { apiMode, kindFor, messageFor, notifyAfterSave, sendOne, sentToast } from '../../reminders'
 
 function ModePills({ value, onChange }) {
   return (
@@ -32,13 +32,12 @@ function PaymentModal({ member, onClose, onDone }) {
     if (n <= 0) return setErr('Enter an amount greater than 0')
     if (n > member.balance) return setErr(`Amount can’t be more than the pending ${inr(member.balance)}`)
     setBusy(true); setErr('')
-    const win = receipt ? window.open('about:blank', '_blank') : null
+    const win = receipt && !apiMode(settings) ? window.open('about:blank', '_blank') : null
     try {
       const res = await api.recordPayment(member.id, { amount: n, mode, paid_on: date })
-      if (win) {
+      if (receipt) {
         const text = fillTemplate(templates?.[settings.lang || 'en']?.receipt || '', { name: member.name, plan: member.plan_name, amount: n.toLocaleString('en-IN'), gym: settings.gym_name })
-        win.location.href = waLink(member.phone, settings.country_code, text)
-        api.logReminders({ member_ids: [member.id], kind: 'receipt', message: text }).catch(() => {})
+        await notifyAfterSave({ settings, templates, member, kind: 'receipt', text, win, toast })
       }
       toast.success(`Payment of ${inr(n)} recorded · ${res.receipt}`)
       onDone()
@@ -227,7 +226,7 @@ export default function MemberDetail() {
             </div>
           </div>
           <div className="actions">
-            <button className="btn btn-wa" onClick={() => sendOne({ member: m, kind, templates, settings }).then(() => { toast.success('WhatsApp opened'); reload() })}><MessageCircle /> WhatsApp reminder</button>
+            <button className="btn btn-wa" onClick={() => sendOne({ member: m, kind, templates, settings }).then((res) => { sentToast(toast, m, res); reload() })}><MessageCircle /> WhatsApp reminder</button>
             {m.balance > 0 && <button className="btn btn-ghost" onClick={() => setModal('pay')}><CreditCard /> Record payment</button>}
             {m.status === 'inactive'
               ? <button className="btn btn-primary" onClick={() => setModal('reactivate')}><UserCheck /> Reactivate</button>

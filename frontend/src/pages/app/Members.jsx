@@ -6,7 +6,7 @@ import { useDebounced, useFetch } from '../../hooks'
 import { useApp } from '../../context'
 import { Avatar, Empty, ErrorBanner, Modal, Skeleton, StatusChip, useToast } from '../../components/ui'
 import { INACTIVE_REASONS, fmtDate, inr } from '../../utils'
-import { kindFor, sendOne } from '../../reminders'
+import { kindFor, sendOne, sentToast } from '../../reminders'
 
 const FILTERS = [
   ['all', 'All'],
@@ -56,8 +56,7 @@ export default function Members() {
   const pages = Math.max(1, Math.ceil(total / pageSize))
 
   const remind = async (m) => {
-    await sendOne({ member: m, kind: kindFor(m), templates, settings })
-    toast.success(`WhatsApp opened for ${m.name}`)
+    sentToast(toast, m, await sendOne({ member: m, kind: kindFor(m), templates, settings }))
   }
 
   const markAll = async () => {

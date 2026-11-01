@@ -1,3 +1,4 @@
+import asyncio
 import os
 from contextlib import asynccontextmanager
 
@@ -20,7 +21,14 @@ async def lifespan(_app: FastAPI):
     with SessionLocal() as db:
         ensure_locations(db)
         seed_if_empty(db)
+    task = None
+    if os.getenv("AUTO_REMINDERS", "true").lower() != "false":
+        from .automation import scheduler
+
+        task = asyncio.create_task(scheduler())
     yield
+    if task:
+        task.cancel()
 
 
 app = FastAPI(title="FitTrack API", version="1.0.0", lifespan=lifespan)

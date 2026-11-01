@@ -27,6 +27,8 @@ DEFAULT_SETTINGS = {
     "rule_before_expiry": True,
     "rule_on_expiry": True,
     "rule_fee_balance": False,
+    "reminder_language": "en",
+    "last_auto_run": "",
 }
 
 

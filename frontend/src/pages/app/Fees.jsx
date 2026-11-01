@@ -5,8 +5,8 @@ import { api } from '../../api'
 import { useFetch } from '../../hooks'
 import { useApp } from '../../context'
 import { Avatar, Empty, ErrorBanner, Modal, Skeleton, StatusChip, useToast } from '../../components/ui'
-import { MODES, fillTemplate, fmtDate, inr, todayISO, waLink } from '../../utils'
-import { sendOne } from '../../reminders'
+import { MODES, fillTemplate, fmtDate, inr, todayISO } from '../../utils'
+import { apiMode, notifyAfterSave, sendOne, sentToast } from '../../reminders'
 
 export default function Fees() {
   const { settings, templates, locParam, locationId } = useApp()
@@ -27,13 +27,12 @@ export default function Fees() {
     const n = Number(f.amount) || 0
     if (n <= 0 || n > target.balance) return setErr(`Enter an amount between ₹1 and ${inr(target.balance)}`)
     setBusy(true); setErr('')
-    const win = f.receipt ? window.open('about:blank', '_blank') : null
+    const win = f.receipt && !apiMode(settings) ? window.open('about:blank', '_blank') : null
     try {
       const res = await api.recordPayment(target.id, { amount: n, mode: f.mode, paid_on: f.date })
-      if (win) {
+      if (f.receipt) {
         const text = fillTemplate(templates?.en?.receipt || '', { name: target.name, plan: target.plan_name, amount: n.toLocaleString('en-IN'), gym: settings.gym_name })
-        win.location.href = waLink(target.phone, settings.country_code, text)
-        api.logReminders({ member_ids: [target.id], kind: 'receipt', message: text }).catch(() => {})
+        await notifyAfterSave({ settings, templates, member: target, kind: 'receipt', text, win, toast })
       }
       toast.success(`${inr(n)} collected from ${target.name} · ${res.receipt}`)
       setTarget(null); reload()
@@ -93,7 +92,7 @@ export default function Fees() {
                   <td className="num">{fmtDate(m.since, false)}</td>
                   <td className="right" style={{ whiteSpace: 'nowrap' }}><span className="row-actions">
                     <button className="btn btn-primary btn-sm" onClick={() => open(m)}>Collect</button>
-                    <button className="btn btn-wa btn-icon" aria-label={`Remind ${m.name} on WhatsApp`} onClick={() => sendOne({ member: m, kind: 'fee', templates, settings }).then(() => toast.success(`WhatsApp opened for ${m.name}`))}><MessageCircle size={18} /></button>
+                    <button className="btn btn-wa btn-icon" aria-label={`Remind ${m.name} on WhatsApp`} onClick={() => sendOne({ member: m, kind: 'fee', templates, settings }).then((res) => sentToast(toast, m, res))}><MessageCircle size={18} /></button>
                   </span></td>
                 </tr>
               ))}
