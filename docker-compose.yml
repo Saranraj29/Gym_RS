@@ -1,0 +1,26 @@
+# FitTrack — production-style local run.   docker compose up --build   →  http://localhost:8080
+services:
+  backend:
+    build: ./backend
+    user: "${PUID:-1000}:${PGID:-1000}"
+    environment:
+      DB_DIR: /data
+      SEED_DEMO: "${SEED_DEMO:-true}"
+    volumes:
+      - ./DB:/data          # SQLite file + member photos live in the repo's DB/ folder
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health').status == 200 else 1)"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped

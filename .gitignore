@@ -1,0 +1,20 @@
+# data — never commit real member data
+DB/*
+!DB/.gitkeep
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# node
+node_modules/
+frontend/dist/
+
+# env / editor
+.env
+.DS_Store
+.idea/
+.vscode/

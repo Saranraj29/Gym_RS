@@ -1,0 +1,33 @@
+# Hot-reload development:   docker compose -f docker-compose.dev.yml up --build
+#   frontend → http://localhost:5173 (Vite)    API docs → http://localhost:8000/docs
+services:
+  backend:
+    build: ./backend
+    user: "${PUID:-1000}:${PGID:-1000}"
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      DB_DIR: /data
+      SEED_DEMO: "${SEED_DEMO:-true}"
+      CORS_ORIGINS: "http://localhost:5173"
+    volumes:
+      - ./DB:/data
+      - ./backend/app:/srv/app
+    ports:
+      - "8000:8000"
+
+  frontend:
+    image: node:22-alpine
+    working_dir: /app
+    command: sh -c "npm install --no-audit --no-fund && npm run dev -- --host 0.0.0.0"
+    environment:
+      VITE_PROXY_TARGET: http://backend:8000
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+volumes:
+  frontend_node_modules:
