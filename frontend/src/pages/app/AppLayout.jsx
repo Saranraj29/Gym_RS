@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { ArrowLeft, CreditCard, LayoutDashboard, MessageCircle, Menu, Moon, Plus, Search, Settings2, Sun, Users } from 'lucide-react'
+import { ArrowLeft, CreditCard, LayoutDashboard, MapPin, MessageCircle, Menu, Moon, Plus, Search, Settings2, Sun, Users } from 'lucide-react'
 import { Logo } from '../../components/ui'
 import { AppCtx } from '../../context'
 import { useFetch } from '../../hooks'
@@ -34,10 +34,30 @@ export default function AppLayout() {
   const loc = useLocation()
   const settings = useFetch(() => api.settings(), [])
   const templates = useFetch(() => api.templates(), [])
+  const locs = useFetch(() => api.locations(), [])
+  const [locationId, setLoc] = useState(() => {
+    try { return localStorage.getItem('fittrack-location') || 'all' } catch { return 'all' }
+  })
+  const locations = locs.data || []
+  const valid = locationId === 'all' || locations.some((l) => String(l.id) === String(locationId))
+  const activeLoc = valid || !locs.data ? locationId : 'all'
+  const setLocationId = (v) => {
+    setLoc(String(v))
+    try { localStorage.setItem('fittrack-location', String(v)) } catch { /* ignore */ }
+  }
   useEffect(() => { setOpen(false) }, [loc.pathname])
 
   const gym = settings.data?.gym_name || 'FitTrack Gym'
-  const ctx = { settings: settings.data || { gym_name: gym, country_code: '91' }, templates: templates.data, reloadSettings: settings.reload }
+  const ctx = {
+    settings: settings.data || { gym_name: gym, country_code: '91' },
+    templates: templates.data,
+    reloadSettings: settings.reload,
+    locations,
+    reloadLocations: locs.reload,
+    locationId: String(activeLoc),
+    setLocationId,
+    locParam: activeLoc === 'all' ? undefined : Number(activeLoc),
+  }
 
   return (
     <AppCtx.Provider value={ctx}>
@@ -55,7 +75,7 @@ export default function AppLayout() {
           <div className="side-foot">
             <div className="gym-card">
               <span className="gm">{gym.slice(0, 1).toUpperCase()}</span>
-              <div style={{ minWidth: 0 }}><b>{gym}</b><small>Gym owner</small></div>
+              <div style={{ minWidth: 0 }}><b>{gym}</b><small>{locations.length} location{locations.length === 1 ? '' : 's'}</small></div>
             </div>
             <div className="side-links">
               <Link to="/" className="btn btn-ghost btn-sm"><ArrowLeft /> Home</Link>
@@ -75,6 +95,15 @@ export default function AppLayout() {
               <label className="sr-only" htmlFor="gsearch">Search members</label>
               <input id="gsearch" className="input" placeholder="Search members by name, phone or ID…" value={q} onChange={(e) => setQ(e.target.value)} />
             </form>
+            <span className="spacer" />
+            <label className="loc-select">
+              <MapPin size={17} />
+              <span className="sr-only">Location</span>
+              <select value={ctx.locationId} onChange={(e) => setLocationId(e.target.value)} aria-label="Location">
+                <option value="all">All locations</option>
+                {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+              </select>
+            </label>
           </header>
           <Outlet context={ctx} />
         </div>

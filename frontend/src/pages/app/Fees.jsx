@@ -9,8 +9,8 @@ import { MODES, fillTemplate, fmtDate, inr, todayISO, waLink } from '../../utils
 import { sendOne } from '../../reminders'
 
 export default function Fees() {
-  const { data, loading, error, reload } = useFetch(() => api.fees(), [])
-  const { settings, templates } = useApp()
+  const { settings, templates, locParam, locationId } = useApp()
+  const { data, loading, error, reload } = useFetch(() => api.fees(locParam), [locParam])
   const toast = useToast()
   const nav = useNavigate()
   const [target, setTarget] = useState(null)
@@ -84,7 +84,7 @@ export default function Fees() {
                   <td>
                     <Link to={`/app/members/${m.id}`} className="person">
                       <Avatar name={m.name} src={m.photo_url} size={40} />
-                      <span className="meta"><span className="nm">{m.name}</span><span className="sub">{m.plan_name}{m.status === 'expired' ? ' · expired' : ''}</span></span>
+                      <span className="meta"><span className="nm">{m.name}</span><span className="sub">{m.plan_name}{m.status === 'expired' ? ' · expired' : m.status === 'inactive' ? ' · inactive' : ''}{locationId === 'all' && m.location_name ? ` · ${m.location_name}` : ''}</span></span>
                     </Link>
                   </td>
                   <td className="num">{inr(m.fee_total)}</td>

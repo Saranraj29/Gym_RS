@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Camera, CreditCard, MessageCircle, Pencil, RefreshCw, Trash2 } from 'lucide-react'
+import { ArrowLeft, Camera, CreditCard, MapPin, MessageCircle, Pencil, RefreshCw, Trash2, UserCheck, UserMinus } from 'lucide-react'
 import { api } from '../../api'
 import { useFetch } from '../../hooks'
 import { useApp } from '../../context'
 import { Avatar, Empty, ErrorBanner, Modal, Skeleton, StatusChip, downscale, useToast } from '../../components/ui'
-import { MODES, daysLabel, fmtDate, inr, todayISO, waLink, fillTemplate } from '../../utils'
+import { INACTIVE_REASONS, MODES, daysLabel, fmtDate, inr, todayISO, waLink, fillTemplate } from '../../utils'
 import { kindFor, messageFor, sendOne } from '../../reminders'
 
 function ModePills({ value, onChange }) {
@@ -67,7 +67,7 @@ function PaymentModal({ member, onClose, onDone }) {
   )
 }
 
-function RenewModal({ member, onClose, onDone }) {
+function RenewModal({ member, onClose, onDone, reactivate = false }) {
   const toast = useToast()
   const plans = useFetch(() => api.plans(), [])
   const [planId, setPlanId] = useState(null)
@@ -86,14 +86,15 @@ function RenewModal({ member, onClose, onDone }) {
     e.preventDefault()
     setBusy(true); setErr('')
     try {
-      await api.renew(member.id, { plan_id: plan.id, paid_amount: Math.min(effectivePaid, plan.price), mode })
-      toast.success(`${member.name} renewed on the ${plan.name} plan`)
+      const body = { plan_id: plan.id, paid_amount: Math.min(effectivePaid, plan.price), mode }
+      await (reactivate ? api.reactivate(member.id, body) : api.renew(member.id, body))
+      toast.success(reactivate ? `${member.name} is active again on the ${plan.name} plan` : `${member.name} renewed on the ${plan.name} plan`)
       onDone()
     } catch (e2) { setErr(e2.message); setBusy(false) }
   }
   return (
-    <Modal open onClose={onClose} title={`Renew ${member.name}`} width={640}
-      footer={<><button className="btn btn-ghost" onClick={onClose} type="button">Cancel</button><button form="renew-form" className="btn btn-primary" disabled={busy || !plan}>{busy ? 'Renewing…' : 'Renew plan'}</button></>}>
+    <Modal open onClose={onClose} title={reactivate ? `Reactivate ${member.name}` : `Renew ${member.name}`} width={640}
+      footer={<><button className="btn btn-ghost" onClick={onClose} type="button">Cancel</button><button form="renew-form" className="btn btn-primary" disabled={busy || !plan}>{busy ? 'Saving…' : reactivate ? 'Reactivate member' : 'Renew plan'}</button></>}>
       <form id="renew-form" onSubmit={submit} style={{ display: 'grid', gap: 16 }}>
         <div className="plan-grid">
           {list.map((p) => (
@@ -102,7 +103,7 @@ function RenewModal({ member, onClose, onDone }) {
             </button>
           ))}
         </div>
-        <p style={{ color: 'var(--muted)', fontSize: 14 }}>The new period starts {start}.</p>
+        <p style={{ color: 'var(--muted)', fontSize: 14 }}>{reactivate ? `Welcome back${member.inactive_on ? ` — inactive since ${fmtDate(member.inactive_on)}` : ''}. ` : ''}The new period starts {start}.</p>
         <div className="field"><label htmlFor="r-paid">Paying now (₹)</label><input id="r-paid" className="input num" inputMode="numeric" value={paid === '' && plan ? String(plan.price) : paid} onChange={(e) => setPaid(e.target.value.replace(/\D/g, ''))} /></div>
         <div className="field"><span className="label">Paid by</span><ModePills value={mode} onChange={setMode} /></div>
         {err && <div className="banner error" role="alert">{err}</div>}
@@ -111,11 +112,31 @@ function RenewModal({ member, onClose, onDone }) {
   )
 }
 
+function InactiveModal({ member, onClose, onDone }) {
+  const toast = useToast()
+  const [reason, setReason] = useState(INACTIVE_REASONS[0])
+  const [busy, setBusy] = useState(false)
+  const submit = async () => {
+    setBusy(true)
+    try { await api.markInactive(member.id, { reason }); toast.success(`${member.name} marked inactive`); onDone() } catch (e) { toast.error(e.message); setBusy(false) }
+  }
+  return (
+    <Modal open onClose={onClose} title={`Mark ${member.name} inactive?`}
+      footer={<><button className="btn btn-ghost" onClick={onClose}>Cancel</button><button className="btn btn-primary" onClick={submit} disabled={busy}>{busy ? 'Saving…' : 'Mark inactive'}</button></>}>
+      <p style={{ color: 'var(--muted)' }}>They’ll move out of your active, expired and reminder lists. Payment history stays, and you can reactivate them whenever they return.</p>
+      <div className="field"><label htmlFor="in-reason">Reason</label>
+        <select id="in-reason" className="select" value={reason} onChange={(e) => setReason(e.target.value)}>{INACTIVE_REASONS.map((r) => <option key={r}>{r}</option>)}</select></div>
+    </Modal>
+  )
+}
+
 function EditModal({ member, onClose, onDone }) {
   const toast = useToast()
+  const { locations } = useApp()
   const [f, setF] = useState({
     name: member.name, phone: member.phone, gender: member.gender || '', dob: member.dob || '', batch: member.batch || '', trainer: member.trainer || '',
     emergency_name: member.emergency_name || '', emergency_phone: member.emergency_phone || '', notes: member.notes || '',
+    location_id: member.location_id || '',
   })
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
@@ -124,6 +145,7 @@ function EditModal({ member, onClose, onDone }) {
     e.preventDefault()
     setBusy(true); setErr('')
     const body = Object.fromEntries(Object.entries(f).map(([k, v]) => [k, v === '' ? null : v]))
+    if (body.location_id) body.location_id = Number(body.location_id)
     try { await api.updateMember(member.id, body); toast.success('Details updated'); onDone() } catch (e2) { setErr(e2.message); setBusy(false) }
   }
   return (
@@ -140,6 +162,9 @@ function EditModal({ member, onClose, onDone }) {
         <div className="field"><label htmlFor="e-trainer">Trainer</label><input id="e-trainer" className="input" value={f.trainer} onChange={set('trainer')} /></div>
         <div className="field"><label htmlFor="e-en">Emergency contact name</label><input id="e-en" className="input" value={f.emergency_name} onChange={set('emergency_name')} /></div>
         <div className="field"><label htmlFor="e-ep">Emergency contact phone</label><input id="e-ep" className="input" inputMode="tel" value={f.emergency_phone} onChange={set('emergency_phone')} /></div>
+        <div className="field full"><label htmlFor="e-loc">Location</label>
+          <select id="e-loc" className="select" value={f.location_id} onChange={set('location_id')}>{locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select>
+          <span className="hint">Changing this transfers the member to another location.</span></div>
         <div className="field full"><label htmlFor="e-notes">Notes</label><textarea id="e-notes" className="textarea" value={f.notes} onChange={set('notes')} placeholder="Injuries, goals, anything staff should know" /></div>
         {err && <div className="banner error full" role="alert">{err}</div>}
       </form>
@@ -184,7 +209,7 @@ export default function MemberDetail() {
     <div className="page">
       <div>
         <Link to="/app/members" className="crumb"><ArrowLeft /> All members</Link>
-        <section className="card profile">
+        <section className={'card profile' + (m.status === 'inactive' ? ' is-inactive' : '')}>
           <div className="profile-photo">
             <Avatar name={m.name} src={m.photo_url} size={132} />
             <label className="photo-edit" title="Change photo">
@@ -194,16 +219,19 @@ export default function MemberDetail() {
           </div>
           <div className="profile-info">
             <h1>{m.name}</h1>
-            <div className="meta"><span className="num">+91 {m.phone}</span><span>Member {m.code}</span><span>Joined {fmtDate(m.joined_on)}</span></div>
+            <div className="meta"><span className="num">+91 {m.phone}</span><span>Member {m.code}</span><span>Joined {fmtDate(m.joined_on)}</span><span className="loc-tag" style={{ fontSize: 14 }}><MapPin />{m.location_name}</span></div>
             <div className="chips">
               <StatusChip status={m.status} daysLeft={m.days_left} />
+              {m.status === 'inactive' && <span className="chip muted plain">{m.inactive_reason} · since {fmtDate(m.inactive_on)}</span>}
               {m.balance > 0 && <span className="chip bad">{inr(m.balance)} pending</span>}
             </div>
           </div>
           <div className="actions">
             <button className="btn btn-wa" onClick={() => sendOne({ member: m, kind, templates, settings }).then(() => { toast.success('WhatsApp opened'); reload() })}><MessageCircle /> WhatsApp reminder</button>
             {m.balance > 0 && <button className="btn btn-ghost" onClick={() => setModal('pay')}><CreditCard /> Record payment</button>}
-            <button className="btn btn-primary" onClick={() => setModal('renew')}><RefreshCw /> Renew plan</button>
+            {m.status === 'inactive'
+              ? <button className="btn btn-primary" onClick={() => setModal('reactivate')}><UserCheck /> Reactivate</button>
+              : <button className="btn btn-primary" onClick={() => setModal('renew')}><RefreshCw /> Renew plan</button>}
           </div>
         </section>
       </div>
@@ -283,16 +311,31 @@ export default function MemberDetail() {
               ))}
             </ul>
           </section>
+          <section className="card">
+            <div className="card-head"><h2>History</h2></div>
+            <ul className="timeline" style={{ marginTop: 10 }}>
+              {m.events.map((e) => (
+                <li key={e.id} className={e.kind}>
+                  <b style={{ textTransform: 'capitalize' }}>{e.kind === 'joined' ? 'Joined' : e.kind}</b> <span className="num" style={{ color: 'var(--faint)' }}>· {fmtDate(e.on_date)}</span>
+                  {e.note && <small>{e.note}</small>}
+                </li>
+              ))}
+              {m.events.length === 0 && <li><small>No history yet</small></li>}
+            </ul>
+          </section>
           <section className="card card-body">
             <p className="label" style={{ marginBottom: 10 }}>Next message preview</p>
             <div className="wa-preview"><div className="bubble">{preview}</div></div>
           </section>
+          {m.status !== 'inactive' && <button className="btn btn-ghost" onClick={() => setModal('inactive')}><UserMinus /> Mark inactive</button>}
           <button className="btn btn-danger" onClick={() => setModal('delete')}><Trash2 /> Delete member</button>
         </div>
       </div>
 
       {modal === 'pay' && <PaymentModal member={m} onClose={() => setModal(null)} onDone={done} />}
       {modal === 'renew' && <RenewModal member={m} onClose={() => setModal(null)} onDone={done} />}
+      {modal === 'reactivate' && <RenewModal member={m} reactivate onClose={() => setModal(null)} onDone={done} />}
+      {modal === 'inactive' && <InactiveModal member={m} onClose={() => setModal(null)} onDone={done} />}
       {modal === 'edit' && <EditModal member={m} onClose={() => setModal(null)} onDone={done} />}
       <Modal open={modal === 'delete'} onClose={() => setModal(null)} title="Delete this member?"
         footer={<><button className="btn btn-ghost" onClick={() => setModal(null)}>Cancel</button><button className="btn btn-danger" onClick={del}>Delete {m.name}</button></>}>

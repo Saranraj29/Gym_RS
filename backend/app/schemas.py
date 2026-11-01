@@ -17,6 +17,7 @@ class MemberBase(BaseModel):
     emergency_name: str | None = Field(default=None, max_length=120)
     emergency_phone: str | None = Field(default=None, max_length=20)
     notes: str | None = None
+    location_id: int | None = None
 
     @field_validator("name")
     @classmethod
@@ -84,8 +85,20 @@ class ReminderLogIn(BaseModel):
     message: str | None = None
 
 
-class DemoRequestIn(BaseModel):
-    name: str = Field(min_length=2, max_length=120)
-    phone: str = Field(min_length=7, max_length=30)
-    gym_name: str | None = Field(default=None, max_length=120)
-    message: str | None = Field(default=None, max_length=1000)
+INACTIVE_REASONS = ("Not attending", "Moved away", "Medical", "Financial", "Other")
+
+
+class InactiveRequest(BaseModel):
+    reason: str = Field(default="Not attending", max_length=60)
+    on_date: date | None = None
+
+
+class BulkInactiveRequest(BaseModel):
+    member_ids: list[int] = Field(min_length=1)
+    reason: str = Field(default="Not attending", max_length=60)
+
+
+class LocationIn(BaseModel):
+    name: str = Field(min_length=2, max_length=80)
+    address: str | None = Field(default=None, max_length=300)
+    phone: str | None = Field(default=None, max_length=20)

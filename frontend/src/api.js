@@ -38,7 +38,7 @@ const qs = (params = {}) => {
 }
 
 export const api = {
-  dashboard: () => request('/api/dashboard'),
+  dashboard: (location_id) => request('/api/dashboard' + qs({ location_id })),
   members: (params) => request('/api/members' + qs(params)),
   member: (id) => request(`/api/members/${id}`),
   createMember: (body) => request('/api/members', { method: 'POST', body }),
@@ -52,7 +52,7 @@ export const api = {
   deletePhoto: (id) => request(`/api/members/${id}/photo`, { method: 'DELETE' }),
   recordPayment: (id, body) => request(`/api/members/${id}/payments`, { method: 'POST', body }),
   renew: (id, body) => request(`/api/members/${id}/renew`, { method: 'POST', body }),
-  fees: () => request('/api/fees'),
+  fees: (location_id) => request('/api/fees' + qs({ location_id })),
   plans: () => request('/api/plans'),
   createPlan: (body) => request('/api/plans', { method: 'POST', body }),
   updatePlan: (id, body) => request(`/api/plans/${id}`, { method: 'PUT', body }),
@@ -60,8 +60,14 @@ export const api = {
   settings: () => request('/api/settings'),
   saveSettings: (body) => request('/api/settings', { method: 'PUT', body }),
   templates: () => request('/api/reminders/templates'),
-  audience: (kind) => request('/api/reminders/audience' + qs({ kind })),
+  audience: (kind, location_id) => request('/api/reminders/audience' + qs({ kind, location_id })),
   logReminders: (body) => request('/api/reminders/log', { method: 'POST', body }),
-  reminderHistory: () => request('/api/reminders/history'),
-  demoRequest: (body) => request('/api/demo-requests', { method: 'POST', body }),
+  reminderHistory: (location_id) => request('/api/reminders/history' + qs({ location_id })),
+  locations: () => request('/api/locations'),
+  createLocation: (body) => request('/api/locations', { method: 'POST', body }),
+  updateLocation: (id, body) => request(`/api/locations/${id}`, { method: 'PUT', body }),
+  deleteLocation: (id) => request(`/api/locations/${id}`, { method: 'DELETE' }),
+  markInactive: (id, body) => request(`/api/members/${id}/inactive`, { method: 'POST', body }),
+  reactivate: (id, body) => request(`/api/members/${id}/reactivate`, { method: 'POST', body }),
+  bulkInactive: (body) => request('/api/members/bulk-inactive', { method: 'POST', body }),
 }

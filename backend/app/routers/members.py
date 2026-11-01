@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from .. import services as svc
 from ..database import get_db
 from ..models import Member
-from ..schemas import MemberCreate, MemberUpdate, PaymentCreate, RenewRequest
+from ..schemas import BulkInactiveRequest, InactiveRequest, MemberCreate, MemberUpdate, PaymentCreate, RenewRequest
 
 router = APIRouter(prefix="/api/members", tags=["members"])
 
@@ -61,6 +61,10 @@ def member_detail(member: Member) -> dict:
         }
         for p in sorted(member.payments, key=lambda p: (p.paid_on, p.id), reverse=True)
     ]
+    out["events"] = [
+        {"id": e.id, "kind": e.kind, "on_date": e.on_date, "note": e.note}
+        for e in sorted(member.events, key=lambda e: (e.on_date, e.id), reverse=True)
+    ]
     out["reminders"] = [
         {"id": r.id, "kind": r.kind, "channel": r.channel, "sent_on": r.sent_on, "lang": r.lang}
         for r in sorted(member.reminders, key=lambda r: (r.sent_on, r.id), reverse=True)
@@ -71,7 +75,8 @@ def member_detail(member: Member) -> dict:
 @router.get("")
 def list_members(
     q: str = "",
-    status: str = Query("all", pattern="^(all|active|due|expired|pending)$"),
+    status: str = Query("all", pattern="^(all|active|due|expired|inactive|lapsed|pending)$"),
+    location_id: int | None = None,
     plan: str = "all",
     sort: str = Query("joined", pattern="^(joined|name|ends|balance)$"),
     page: int = Query(1, ge=1),
@@ -80,11 +85,15 @@ def list_members(
 ):
     now = svc.today()
     rows = [svc.member_summary(m, now) for m in svc.members_with_relations(db)]
+    if location_id is not None:
+        rows = [r for r in rows if r["location_id"] == location_id]
     counts = {
         "all": len(rows),
         "active": sum(r["status"] == "active" for r in rows),
         "due": sum(r["status"] == "due" for r in rows),
         "expired": sum(r["status"] == "expired" for r in rows),
+        "inactive": sum(r["status"] == "inactive" for r in rows),
+        "lapsed": sum(r["lapsed"] for r in rows),
         "pending": sum(r["balance"] > 0 for r in rows),
     }
     needle = q.strip().lower()
@@ -100,6 +109,8 @@ def list_members(
             return False
         if status == "pending":
             return r["balance"] > 0
+        if status == "lapsed":
+            return r["lapsed"]
         return status == "all" or r["status"] == status
 
     rows = [r for r in rows if keep(r)]
@@ -119,13 +130,16 @@ def list_members(
 @router.post("", status_code=201)
 def create_member(body: MemberCreate, db: Session = Depends(get_db)):
     plan = svc.get_active_plan(db, body.plan_id)
+    loc = svc.get_location(db, body.location_id)
     joined = body.join_date or svc.today()
     member = Member(
-        **body.model_dump(exclude={"plan_id", "join_date", "paid_amount", "payment_mode"}),
+        **body.model_dump(exclude={"plan_id", "join_date", "paid_amount", "payment_mode", "location_id"}),
+        location_id=loc.id,
         joined_on=joined,
     )
     db.add(member)
     db.flush()
+    svc.log_event(db, member, "joined", joined, loc.name)
     ms = svc.add_membership(db, member, plan, joined)
     if body.paid_amount > 0:
         svc.add_payment(db, member, min(body.paid_amount, plan.price), body.payment_mode, joined, ms)
@@ -141,8 +155,15 @@ def get_member(member_id: int, db: Session = Depends(get_db)):
 @router.put("/{member_id}")
 def update_member(member_id: int, body: MemberUpdate, db: Session = Depends(get_db)):
     member = svc.load_member(db, member_id)
-    for key, value in body.model_dump().items():
+    data = body.model_dump()
+    new_loc_id = data.pop("location_id")
+    for key, value in data.items():
         setattr(member, key, value)
+    if new_loc_id is not None and new_loc_id != member.location_id:
+        new_loc = svc.get_location(db, new_loc_id)
+        old = member.location.name if member.location else "—"
+        member.location_id = new_loc.id
+        svc.log_event(db, member, "transferred", svc.today(), f"{old} → {new_loc.name}")
     db.commit()
     return member_detail(svc.load_member(db, member_id))
 
@@ -196,6 +217,8 @@ def record_payment(member_id: int, body: PaymentCreate, db: Session = Depends(ge
 @router.post("/{member_id}/renew", status_code=201)
 def renew(member_id: int, body: RenewRequest, db: Session = Depends(get_db)):
     member = svc.load_member(db, member_id)
+    if member.inactive:
+        raise HTTPException(409, "Member is inactive — use Reactivate instead")
     plan = svc.get_active_plan(db, body.plan_id)
     now = svc.today()
     current = svc.current_membership(member)
@@ -206,5 +229,57 @@ def renew(member_id: int, body: RenewRequest, db: Session = Depends(get_db)):
     ms = svc.add_membership(db, member, plan, start)
     if body.paid_amount > 0:
         svc.add_payment(db, member, min(body.paid_amount, plan.price), body.mode, now, ms)
+    db.commit()
+    return member_detail(svc.load_member(db, member_id))
+
+
+def _mark_inactive(db: Session, member: Member, reason: str, on_date) -> None:
+    member.inactive = True
+    member.inactive_on = on_date
+    member.inactive_reason = reason
+    svc.log_event(db, member, "inactive", on_date, reason)
+
+
+@router.post("/{member_id}/inactive")
+def mark_inactive(member_id: int, body: InactiveRequest, db: Session = Depends(get_db)):
+    member = svc.load_member(db, member_id)
+    if member.inactive:
+        raise HTTPException(409, "Member is already inactive")
+    _mark_inactive(db, member, body.reason, body.on_date or svc.today())
+    db.commit()
+    return member_detail(svc.load_member(db, member_id))
+
+
+@router.post("/bulk-inactive")
+def bulk_inactive(body: BulkInactiveRequest, db: Session = Depends(get_db)):
+    now = svc.today()
+    done = 0
+    for mid in set(body.member_ids):
+        member = db.get(Member, mid)
+        if member is not None and not member.inactive:
+            _mark_inactive(db, member, body.reason, now)
+            done += 1
+    db.commit()
+    return {"updated": done}
+
+
+@router.post("/{member_id}/reactivate", status_code=201)
+def reactivate(member_id: int, body: RenewRequest, db: Session = Depends(get_db)):
+    """A returning member: starts a fresh plan period from today (or the given start) and clears inactive."""
+    member = svc.load_member(db, member_id)
+    if not member.inactive:
+        raise HTTPException(409, "Member is not inactive")
+    plan = svc.get_active_plan(db, body.plan_id)
+    now = svc.today()
+    current = svc.current_membership(member)
+    start = body.start_date or (current.end_date + timedelta(days=1) if current and current.end_date >= now else now)
+    ms = svc.add_membership(db, member, plan, start)
+    if body.paid_amount > 0:
+        svc.add_payment(db, member, min(body.paid_amount, plan.price), body.mode, now, ms)
+    gap = (now - member.inactive_on).days if member.inactive_on else None
+    member.inactive = False
+    member.inactive_on = None
+    member.inactive_reason = None
+    svc.log_event(db, member, "reactivated", now, f"Back after {gap} days · {plan.name}" if gap is not None else plan.name)
     db.commit()
     return member_detail(svc.load_member(db, member_id))

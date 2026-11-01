@@ -117,3 +117,54 @@ def test_validation_errors(client):
     r = client.post("/api/members", json={"name": "A", "phone": "12", "plan_id": 1})
     assert r.status_code == 422
     assert client.get("/api/members/999999").status_code == 404
+
+
+def test_locations_crud_and_member_location(client):
+    locs = client.get("/api/locations").json()
+    assert [l["name"] for l in locs][:2] == ["Location 1", "Location 2"]
+    new = client.post("/api/locations", json={"name": "Anna Nagar", "address": "1 Main Rd"}).json()
+    assert client.post("/api/locations", json={"name": "Anna Nagar"}).status_code == 409
+    m = new_member(client, name="Located Person", location_id=new["id"])
+    assert m["location_name"] == "Anna Nagar"
+    only = client.get("/api/members", params={"location_id": new["id"]}).json()
+    assert only["total"] == 1
+    assert client.delete(f"/api/locations/{new['id']}").status_code == 409  # has a member
+    renamed = client.put(f"/api/locations/{new['id']}", json={"name": "Anna Nagar West"}).json()
+    assert renamed["name"] == "Anna Nagar West"
+    first = locs[0]["id"]
+    moved = client.put(f"/api/members/{m['id']}", json={"name": "Located Person", "phone": "9876543210", "location_id": first}).json()
+    assert moved["location_id"] == first
+    assert moved["events"][0]["kind"] == "transferred"
+    assert client.delete(f"/api/locations/{new['id']}").status_code == 204
+    dash = client.get("/api/dashboard", params={"location_id": first}).json()
+    assert len(dash["locations"]) >= 2
+
+
+def test_inactive_and_reactivate_flow(client):
+    m = new_member(client, name="Absconded Person", paid_amount=3300)
+    r = client.post(f"/api/members/{m['id']}/inactive", json={"reason": "Not attending"})
+    assert r.status_code == 200 and r.json()["status"] == "inactive"
+    assert client.post(f"/api/members/{m['id']}/inactive", json={}).status_code == 409
+    # inactive members are filtered out of active counts and can't be renewed the normal way
+    inactive_list = client.get("/api/members", params={"status": "inactive"}).json()
+    assert any(i["id"] == m["id"] for i in inactive_list["items"])
+    assert all(i["id"] != m["id"] for i in client.get("/api/members", params={"status": "active"}).json()["items"])
+    assert client.post(f"/api/members/{m['id']}/renew", json={"plan_id": plan_id(client)}).status_code == 409
+    back = client.post(f"/api/members/{m['id']}/reactivate", json={"plan_id": plan_id(client, "Monthly"), "paid_amount": 1200, "mode": "Cash"})
+    assert back.status_code == 201
+    out = back.json()
+    assert out["status"] == "active" and out["plan_name"] == "Monthly"
+    kinds = [e["kind"] for e in out["events"]]
+    assert kinds[:2] == ["reactivated", "inactive"] or kinds[0] == "reactivated"
+    assert client.post(f"/api/members/{m['id']}/reactivate", json={"plan_id": plan_id(client)}).status_code == 409
+
+
+def test_bulk_inactive_and_lapsed(client):
+    from datetime import timedelta
+    m = new_member(client, name="Lapsed Person", paid_amount=3300, join_date=(svc.today() - timedelta(days=200)).isoformat())
+    assert m["status"] == "expired"
+    lapsed = client.get("/api/members", params={"status": "lapsed"}).json()
+    assert any(i["id"] == m["id"] for i in lapsed["items"])
+    res = client.post("/api/members/bulk-inactive", json={"member_ids": [i["id"] for i in lapsed["items"]], "reason": "Not attending"}).json()
+    assert res["updated"] >= 1
+    assert client.get("/api/members", params={"status": "lapsed"}).json()["total"] == 0

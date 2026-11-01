@@ -71,12 +71,14 @@ def templates():
 
 
 @router.get("/audience")
-def audience(kind: str = Query(pattern="^(renewal|fee|expired)$"), db: Session = Depends(get_db)):
+def audience(kind: str = Query(pattern="^(renewal|fee|expired)$"), location_id: int | None = None, db: Session = Depends(get_db)):
     now = svc.today()
     settings = svc.get_settings(db)
     people = []
     for m in svc.members_with_relations(db):
         s = svc.member_summary(m, now)
+        if location_id is not None and s["location_id"] != location_id:
+            continue
         if kind == "renewal" and s["status"] != "due":
             continue
         if kind == "expired" and s["status"] != "expired":
@@ -95,6 +97,8 @@ def audience(kind: str = Query(pattern="^(renewal|fee|expired)$"), db: Session =
                 "name": s["name"],
                 "phone": s["phone"],
                 "photo_url": s["photo_url"],
+                "location": s["location_name"],
+                "inactive": s["status"] == "inactive",
                 "plan": s["plan_name"] or "",
                 "date": _fmt_date(s["end_date"]),
                 "amount": f"{s['balance']:,}",
@@ -124,7 +128,7 @@ def log_reminders(body: ReminderLogIn, db: Session = Depends(get_db)):
 
 
 @router.get("/history")
-def history(limit: int = 12, db: Session = Depends(get_db)):
+def history(limit: int = 12, location_id: int | None = None, db: Session = Depends(get_db)):
     logs = db.scalars(
         select(ReminderLog)
         .options(selectinload(ReminderLog.member).selectinload(Member.payments))
@@ -132,6 +136,8 @@ def history(limit: int = 12, db: Session = Depends(get_db)):
     ).all()
     groups: dict[tuple, dict] = {}
     for log in logs:
+        if location_id is not None and log.member.location_id != location_id:
+            continue
         key = (log.sent_on, log.kind)
         g = groups.setdefault(key, {"date": log.sent_on, "kind": log.kind, "label": LABELS.get(log.kind, log.kind), "sent": 0, "paid_after": 0})
         g["sent"] += 1

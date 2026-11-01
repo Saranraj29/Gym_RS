@@ -16,6 +16,16 @@ class Plan(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
+class Location(Base):
+    __tablename__ = "locations"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(80), unique=True)
+    address: Mapped[str | None] = mapped_column(String(300))
+    phone: Mapped[str | None] = mapped_column(String(20))
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
 class Member(Base):
     __tablename__ = "members"
 
@@ -30,9 +40,17 @@ class Member(Base):
     emergency_phone: Mapped[str | None] = mapped_column(String(20))
     notes: Mapped[str | None] = mapped_column(Text)
     photo: Mapped[str | None] = mapped_column(String(200))
+    location_id: Mapped[int | None] = mapped_column(ForeignKey("locations.id", ondelete="SET NULL"), index=True)
+    inactive: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    inactive_on: Mapped[date | None] = mapped_column(Date)
+    inactive_reason: Mapped[str | None] = mapped_column(String(60))
     joined_on: Mapped[date] = mapped_column(Date)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
+    location: Mapped["Location | None"] = relationship()
+    events: Mapped[list["MemberEvent"]] = relationship(
+        back_populates="member", cascade="all, delete-orphan", order_by="MemberEvent.on_date"
+    )
     memberships: Mapped[list["Membership"]] = relationship(
         back_populates="member", cascade="all, delete-orphan", order_by="Membership.start_date"
     )
@@ -90,19 +108,22 @@ class ReminderLog(Base):
     member: Mapped[Member] = relationship(back_populates="reminders")
 
 
+class MemberEvent(Base):
+    """Status history: joined, inactive, reactivated, transferred."""
+
+    __tablename__ = "member_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    member_id: Mapped[int] = mapped_column(ForeignKey("members.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(20))
+    on_date: Mapped[date] = mapped_column(Date)
+    note: Mapped[str | None] = mapped_column(String(200))
+
+    member: Mapped[Member] = relationship(back_populates="events")
+
+
 class Setting(Base):
     __tablename__ = "settings"
 
     key: Mapped[str] = mapped_column(String(60), primary_key=True)
     value: Mapped[str] = mapped_column(Text)
-
-
-class DemoRequest(Base):
-    __tablename__ = "demo_requests"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(120))
-    phone: Mapped[str] = mapped_column(String(30))
-    gym_name: Mapped[str | None] = mapped_column(String(120))
-    message: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))

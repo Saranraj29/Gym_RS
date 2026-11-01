@@ -12,7 +12,9 @@ A complete gym management app: members (with **photos**), plans, fees & balances
 
 ## Features
 
-- **Home page** (`/`) — hero, features, how it works, dashboard preview, WhatsApp showcase, pricing, about, FAQ, "Book a demo" form. Only a **Get Started** button (no login) — it opens the app.
+- **Home page** (`/`) — hero, features, how it works, dashboard preview, WhatsApp showcase, **membership plans** and **locations/contact** (both read live from the database, so they always match *Plans & settings*), about, FAQ. Only a **Get Started** button (no login) — it opens the app.
+- **Locations** — the gym has several locations (two by default: *Location 1/2* — rename them in *Plans & settings*, add more any time). A location switcher in the top bar filters the dashboard, members, fees and reminders; every member belongs to one location and can be transferred.
+- **Inactive members** — mark members who stopped coming as *Inactive* (with a reason); they leave the active/expired/reminder lists but keep their history. Expired 60+ days? A banner offers to review and mark them inactive in bulk. A returning member is **reactivated** with a fresh plan, and each member has a status history (joined → inactive → reactivated, transfers).
 - **Dashboard** — active members, renewals due in 7 days, expired, pending fees, 6-month collection chart, members by plan.
 - **Members** — search by name / phone / ID, filter by status & plan, sort, table **or photo-card view**, pagination.
 - **Member photos** — upload, drag-and-drop, or take a photo with the phone camera. Photos are resized server-side and shown everywhere a member appears (lists, dashboard, reminders…).
@@ -90,6 +92,6 @@ DB/              SQLite database + member photos (git-ignored)
 ## Customising the home page
 
 All copy, stats, pricing tiers and contact details are in
-[`frontend/src/landingContent.js`](frontend/src/landingContent.js). The numbers shown there (500+ gyms, pricing,
-contact email…) are **sample placeholders** — replace them with your own before publishing.
+[`frontend/src/landingContent.js`](frontend/src/landingContent.js). Membership plans and location details are
+not hard-coded: edit them in the app (*Plans & settings*) and the home page updates.
 Swap `frontend/public/images/hero.jpg` for a high-resolution photo of your choice.

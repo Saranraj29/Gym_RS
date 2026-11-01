@@ -26,7 +26,7 @@ def _active_counts(db: Session) -> dict[int, int]:
     out: dict[int, int] = {}
     for m in svc.members_with_relations(db):
         ms = svc.current_membership(m)
-        if ms and ms.plan_id and svc.status_of(ms.end_date, svc.today())[0] != "expired":
+        if ms and ms.plan_id and not m.inactive and svc.status_of(ms.end_date, svc.today())[0] != "expired":
             out[ms.plan_id] = out.get(ms.plan_id, 0) + 1
     return out
 

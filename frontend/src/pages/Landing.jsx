@@ -1,17 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  ArrowRight, BarChart3, Building2, Camera, CalendarClock, Check, CheckCheck, ChevronDown, Clock3, Mail,
-  MapPin, Menu, MessageCircle, Phone, Send, Target, TrendingUp, Users, Wallet, X,
+  ArrowRight, BarChart3, Camera, CalendarClock, Check, CheckCheck, ChevronDown,
+  MapPin, Menu, MessageCircle, Phone, Users, Wallet, X,
 } from 'lucide-react'
 import { Logo } from '../components/ui'
 import { api } from '../api'
-import { contact, faqs, features, hero, pricing, stats, steps } from '../landingContent'
+import { faqs, features, hero, steps } from '../landingContent'
+import { durationLabel, inr, waLink } from '../utils'
 import '../styles/landing.css'
 
 const ICONS = {
   users: Users, camera: Camera, wallet: Wallet, calendar: CalendarClock, whatsapp: MessageCircle, chart: BarChart3,
-  building: Building2, target: Target, clock: Clock3,
 }
 
 const NAV = [
@@ -84,7 +84,6 @@ function Hero() {
 
       <div className="container hero-in">
         <div className="hero-copy">
-          <span className="eyebrow"><span className="dot" /> Built for gym owners in India</span>
           <h1>
             {a}<br />{b}<br />{c}<span className="grad-text">{accent}</span>{d}
           </h1>
@@ -96,40 +95,7 @@ function Hero() {
           </ul>
           <div className="hero-cta">
             <Link to="/app" className="btn btn-primary btn-lg">Get Started Free <ArrowRight /></Link>
-            <a href="#contact" className="btn btn-lg btn-dark">Book a Demo</a>
           </div>
-        </div>
-
-        <div className="hero-visual">
-          <div className="float-card fc-1" aria-hidden="true">
-            <span className="fc-ico wa"><MessageCircle size={18} /></span>
-            <div>
-              <b>Renewal reminder sent</b>
-              <small>Karthik R · expires in 2 days</small>
-            </div>
-            <CheckCheck size={18} className="fc-tick" />
-          </div>
-          <div className="float-card fc-2" aria-hidden="true">
-            <div>
-              <small>Collected this month</small>
-              <b className="big">₹1,48,200</b>
-            </div>
-            <span className="fc-up"><TrendingUp size={14} /> 12%</span>
-          </div>
-        </div>
-      </div>
-
-      <div className="container">
-        <div className="statbar">
-          {stats.map((s) => {
-            const Icon = ICONS[s.icon]
-            return (
-              <div className="stat" key={s.label}>
-                <span className="stat-ico"><Icon size={22} /></span>
-                <div><b>{s.value}</b><small>{s.label}</small></div>
-              </div>
-            )
-          })}
         </div>
       </div>
     </section>
@@ -227,22 +193,48 @@ function WhatsApp() {
   )
 }
 
+function usePublic(fn, fallback) {
+  const [state, setState] = useState({ data: fallback, loading: true, error: false })
+  useEffect(() => {
+    let alive = true
+    fn().then((data) => alive && setState({ data, loading: false, error: false })).catch(() => alive && setState({ data: fallback, loading: false, error: true }))
+    return () => { alive = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  return state
+}
+
 function Pricing() {
+  // Same plans (and prices) as Plans & settings in the app — they come straight from the database.
+  const { data: plans, loading, error } = usePublic(() => api.plans(), [])
+  const base = plans[0]
+  const popularId = plans.reduce((best, p) => (p.members > (best?.members ?? 0) ? p : best), null)?.id
   return (
     <section id="pricing" className="sec">
       <div className="container">
-        <SectionHead kicker="Pricing" title="Simple plans that grow with your gym" sub="Start free. Upgrade when you outgrow it." />
+        <SectionHead kicker="Pricing" title="Simple membership plans" sub="Pick the plan that fits your routine — the longer you commit, the less you pay per month." />
+        {loading && <div className="price-grid">{[0, 1, 2, 3].map((i) => <div key={i} className="price skeleton" style={{ minHeight: 380 }} />)}</div>}
+        {error && <p className="plans-note">Plans are unavailable right now. Please check back soon.</p>}
         <div className="price-grid">
-          {pricing.map((p, i) => (
-            <article key={p.name} className={'price reveal' + (p.featured ? ' featured' : '')} style={{ '--d': `${i * 80}ms` }}>
-              {p.featured && <span className="badge">Most popular</span>}
-              <h3>{p.name}</h3>
-              <p className="price-note">{p.note}</p>
-              <p className="price-amt"><b>{p.price}</b> <span>{p.per}</span></p>
-              <ul>{p.features.map((f) => <li key={f}><Check size={17} />{f}</li>)}</ul>
-              <Link to="/app" className={'btn ' + (p.featured ? 'btn-primary' : 'btn-dark')}>{p.cta}</Link>
-            </article>
-          ))}
+          {plans.map((p, i) => {
+            const perMonth = Math.round((p.price / p.duration_days) * 30)
+            const saving = base && p.id !== base.id ? Math.round((1 - p.price / p.duration_days / (base.price / base.duration_days)) * 100) : 0
+            const featured = p.id === popularId
+            return (
+              <article key={p.id} className={'price pop-in' + (featured ? ' featured' : '')} style={{ '--d': `${i * 80}ms` }}>
+                {featured && <span className="badge">Most popular</span>}
+                <h3>{p.name}</h3>
+                <p className="price-note">{p.duration_days} days of membership</p>
+                <p className="price-amt"><b>{inr(p.price)}</b> <span>/ {durationLabel(p.duration_days)}</span></p>
+                <ul>
+                  <li><Check size={17} />Valid for {p.duration_days} days</li>
+                  <li><Check size={17} />About {inr(perMonth)} per month</li>
+                  {saving > 0 && <li><Check size={17} />Save {saving}% vs {base.name}</li>}
+                </ul>
+                <Link to="/app" className={'btn ' + (featured ? 'btn-primary' : 'btn-dark')}>Get Started</Link>
+              </article>
+            )
+          })}
         </div>
       </div>
     </section>
@@ -297,50 +289,28 @@ function Faq() {
 }
 
 function Contact() {
-  const [form, setForm] = useState({ name: '', phone: '', gym_name: '', message: '' })
-  const [state, setState] = useState({ busy: false, done: false, error: '' })
-  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value })
-  const submit = async (e) => {
-    e.preventDefault()
-    setState({ busy: true, done: false, error: '' })
-    try {
-      await api.demoRequest(form)
-      setState({ busy: false, done: true, error: '' })
-      setForm({ name: '', phone: '', gym_name: '', message: '' })
-    } catch (err) {
-      setState({ busy: false, done: false, error: err.message })
-    }
-  }
+  const { data: locations, loading } = usePublic(() => api.locations(), [])
+  const { data: settings } = usePublic(() => api.settings(), { gym_name: 'RS Arnold Gym', country_code: '91' })
   return (
     <section id="contact" className="sec sec-alt">
-      <div className="container contact">
-        <div className="reveal">
-          <span className="kicker">Contact</span>
-          <h2>Book a free demo</h2>
-          <p className="about-lead">Tell us about your gym and we’ll walk you through FitTrack — usually in 15 minutes.</p>
-          <ul className="contact-list">
-            <li><Mail size={18} /> {contact.email}</li>
-            <li><Phone size={18} /> {contact.phone}</li>
-            <li><MapPin size={18} /> {contact.address}</li>
-          </ul>
+      <div className="container">
+        <SectionHead kicker="Contact" title={`Visit ${settings.gym_name}`} sub="Drop by any of our locations or message us on WhatsApp." />
+        <div className="loc-grid">
+          {loading && [0, 1].map((i) => <div key={i} className="loc-card skeleton" style={{ minHeight: 170 }} />)}
+          {locations.map((l, i) => (
+            <article key={l.id} className="loc-card pop-in" style={{ '--d': `${i * 80}ms` }}>
+              <span className="loc-ico"><MapPin size={22} /></span>
+              <h3>{l.name}</h3>
+              <p className="loc-addr">{l.address || 'Address coming soon'}</p>
+              {l.phone && (
+                <div className="loc-actions">
+                  <a className="btn btn-dark btn-sm" href={`tel:${l.phone.replace(/\s/g, '')}`}><Phone /> {l.phone}</a>
+                  <a className="btn btn-wa btn-sm" href={waLink(l.phone, settings.country_code)} target="_blank" rel="noreferrer"><MessageCircle /> WhatsApp</a>
+                </div>
+              )}
+            </article>
+          ))}
         </div>
-        <form className="contact-form reveal" onSubmit={submit}>
-          {state.done ? (
-            <div className="sent"><span><CheckCheck size={28} /></span><h3>Request received</h3><p>Thanks! We’ll get in touch shortly to schedule your demo.</p>
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setState({ busy: false, done: false, error: '' })}>Send another</button></div>
-          ) : (
-            <>
-              <div className="form-grid">
-                <div className="field"><label htmlFor="c-name">Your name</label><input id="c-name" className="input" required minLength={2} value={form.name} onChange={set('name')} placeholder="e.g. Saranraj" /></div>
-                <div className="field"><label htmlFor="c-phone">WhatsApp number</label><input id="c-phone" className="input" required minLength={7} inputMode="tel" value={form.phone} onChange={set('phone')} placeholder="98765 43210" /></div>
-                <div className="field full"><label htmlFor="c-gym">Gym name</label><input id="c-gym" className="input" value={form.gym_name} onChange={set('gym_name')} placeholder="Your gym" /></div>
-                <div className="field full"><label htmlFor="c-msg">Anything we should know?</label><textarea id="c-msg" className="textarea" value={form.message} onChange={set('message')} placeholder="Number of members, what you use today…" /></div>
-              </div>
-              {state.error && <div className="banner error" role="alert">{state.error}</div>}
-              <button className="btn btn-primary btn-lg" disabled={state.busy}><Send /> {state.busy ? 'Sending…' : 'Request a demo'}</button>
-            </>
-          )}
-        </form>
       </div>
     </section>
   )

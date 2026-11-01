@@ -17,11 +17,11 @@ const HISTORY_LABEL = { renewal: 'Renewal due', fee: 'Fee pending', expired: 'Ex
 export default function Reminders() {
   const [params, setParams] = useSearchParams()
   const kind = KINDS.some((k) => k.id === params.get('kind')) ? params.get('kind') : 'renewal'
-  const { settings, templates } = useApp()
+  const { settings, templates, locParam, locationId } = useApp()
   const toast = useToast()
 
-  const aud = useFetch(() => Promise.all(KINDS.map((k) => api.audience(k.id))), [])
-  const history = useFetch(() => api.reminderHistory(), [])
+  const aud = useFetch(() => Promise.all(KINDS.map((k) => api.audience(k.id, locParam))), [locParam])
+  const history = useFetch(() => api.reminderHistory(locParam), [locParam])
   const [lang, setLang] = useState('en')
   const [edits, setEdits] = useState({})
   const [picked, setPicked] = useState({})
@@ -89,7 +89,7 @@ export default function Reminders() {
                     <input type="checkbox" id={`r-${kind}-${p.id}`} checked={picked[kind + p.id] !== false} onChange={(e) => setPicked({ ...picked, [kind + p.id]: e.target.checked })} aria-label={`Select ${p.name}`} />
                     <div className="person">
                       <Avatar name={p.name} src={p.photo_url} size={40} />
-                      <span className="meta"><span className="nm">{p.name}</span><span className="sub">{p.plan}{p.date && kind !== 'fee' ? ` · ${kind === 'expired' ? 'ended' : 'ends'} ${p.date}` : ''}</span></span>
+                      <span className="meta"><span className="nm">{p.name}</span><span className="sub">{p.plan}{p.date && kind !== 'fee' ? ` · ${kind === 'expired' ? 'ended' : 'ends'} ${p.date}` : ''}{locationId === 'all' && p.location ? ` · ${p.location}` : ''}{p.inactive ? ' · inactive' : ''}</span></span>
                     </div>
                     <span className={'chip ' + (kind === 'renewal' ? 'warn' : 'bad')}>{p.tag}</span>
                     <button className={'btn btn-sm ' + (done ? 'btn-ghost' : 'btn-wa')} onClick={() => send(p)} aria-label={`Send to ${p.name}`}>

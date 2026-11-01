@@ -13,11 +13,15 @@ router = APIRouter(prefix="/api/fees", tags=["fees"])
 
 
 @router.get("")
-def pending_fees(db: Session = Depends(get_db)):
+def pending_fees(location_id: int | None = None, db: Session = Depends(get_db)):
     now = svc.today()
     items = []
+    ids = set()
     for m in svc.members_with_relations(db):
         s = svc.member_summary(m, now)
+        if location_id is not None and s["location_id"] != location_id:
+            continue
+        ids.add(m.id)
         if s["balance"] <= 0:
             continue
         # "Since": when the oldest unpaid membership started.
@@ -30,7 +34,7 @@ def pending_fees(db: Session = Depends(get_db)):
         items.append(s)
     items.sort(key=lambda r: r["balance"], reverse=True)
 
-    recent_pay = db.scalars(select(Payment).where(Payment.paid_on >= now - timedelta(days=29))).all()
+    recent_pay = [p for p in db.scalars(select(Payment).where(Payment.paid_on >= now - timedelta(days=29))).all() if p.member_id in ids]
     collected = sum(p.amount for p in recent_pay)
     by_mode: dict[str, int] = defaultdict(int)
     for p in recent_pay:

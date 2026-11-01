@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Area, AreaChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { AlertTriangle, ArrowUpRight, CalendarClock, MessageCircle, Plus, TrendingDown, TrendingUp, Users, Wallet } from 'lucide-react'
+import { AlertTriangle, ArrowUpRight, CalendarClock, MapPin, MessageCircle, Plus, TrendingDown, TrendingUp, Users, Wallet } from 'lucide-react'
 import { api } from '../../api'
 import { useFetch } from '../../hooks'
 import { useApp } from '../../context'
@@ -32,8 +32,9 @@ function Tip({ active, payload, label }) {
 }
 
 export default function Dashboard() {
-  const { data, loading, error, reload } = useFetch(() => api.dashboard(), [])
-  const { settings, templates } = useApp()
+  const { settings, templates, locParam, locations, locationId, setLocationId } = useApp()
+  const { data, loading, error, reload } = useFetch(() => api.dashboard(locParam), [locParam])
+  const place = locationId === 'all' ? 'All locations' : locations.find((l) => String(l.id) === locationId)?.name
   const toast = useToast()
 
   const remind = async (m) => {
@@ -50,7 +51,7 @@ export default function Dashboard() {
       <div className="page-head">
         <div>
           <h1>Dashboard</h1>
-          <p>{longDate()}</p>
+          <p>{longDate()} · <span className="loc-tag" style={{ fontSize: 15 }}><MapPin /> {place}</span></p>
         </div>
         <div className="actions">
           <Link to="/app/reminders" className="btn btn-wa"><MessageCircle /> Send reminders</Link>
@@ -72,7 +73,7 @@ export default function Dashboard() {
               {s.first_due ? `First one on ${fmtDate(s.first_due, false)}` : 'Nothing due this week'}
             </Kpi>
             <Kpi icon={AlertTriangle} tone="red" label="Expired, not renewed" value={s.expired}>
-              <Link to="/app/members?status=expired">Follow up →</Link>
+              <Link to="/app/members?status=expired">Follow up →</Link>{s.inactive > 0 && <span>· {s.inactive} inactive</span>}
             </Kpi>
             <Kpi icon={Wallet} tone="green" label="Fees pending" value={inr(s.pending_total)} hero>
               <Link to="/app/fees">{s.pending_count} members · View list →</Link>
@@ -182,6 +183,19 @@ export default function Dashboard() {
         </section>
 
         <div className="stack">
+          {locationId === 'all' && data && data.locations.length > 1 && (
+            <section className="card">
+              <div className="card-head"><h2>By location</h2></div>
+              <div style={{ marginTop: 10 }}>
+                {data.locations.map((l) => (
+                  <button key={l.id} className="loc-row" onClick={() => setLocationId(l.id)} aria-label={`Switch to ${l.name}`}>
+                    <span><b>{l.name}</b><small>{l.live} live · {l.due} due · {l.inactive} inactive</small></span>
+                    <span className={l.pending_total > 0 ? 'amount-bad' : ''} style={{ fontWeight: 700 }}>{inr(l.pending_total)}</span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
           <section className="card">
             <div className="card-head"><h2>Biggest pending fees</h2><Link to="/app/fees">All {s?.pending_count ?? ''}</Link></div>
             <ul className="list" style={{ marginTop: 10 }}>

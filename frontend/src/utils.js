@@ -35,6 +35,7 @@ export const STATUS = {
   active: { label: 'Active', tone: 'ok' },
   due: { label: 'Renewal due', tone: 'warn' },
   expired: { label: 'Expired', tone: 'bad' },
+  inactive: { label: 'Inactive', tone: 'muted' },
 }
 
 export function daysLabel(n) {
@@ -55,3 +56,13 @@ export function waLink(phone, countryCode = '91', text = '') {
 }
 
 export const MODES = ['Cash', 'UPI', 'Card', 'Bank transfer']
+
+export const INACTIVE_REASONS = ['Not attending', 'Moved away', 'Medical', 'Financial', 'Other']
+
+export function durationLabel(days) {
+  if (days === 30) return 'month'
+  if (days === 90) return '3 months'
+  if (days === 180) return '6 months'
+  if (days === 365) return 'year'
+  return `${days} days`
+}

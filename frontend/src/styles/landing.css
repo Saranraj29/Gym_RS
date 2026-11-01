@@ -32,7 +32,7 @@
 .hero-photo img { width: 100%; height: 100%; object-fit: cover; object-position: 62% 28%; filter: saturate(1.05) contrast(1.04); }
 .hero-photo::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(10,9,18,.55) 0%, transparent 28%), linear-gradient(180deg, rgba(10,9,18,.5) 0%, transparent 22%, transparent 62%, var(--bg) 100%), linear-gradient(270deg, rgba(10,9,18,.5), transparent 25%); }
 .hero-photo .stripe { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2; filter: drop-shadow(0 0 22px rgba(168, 85, 247, .9)); }
-.hero-in { display: grid; grid-template-columns: minmax(0, 1.02fr) minmax(0, 1fr); gap: 32px; align-items: center; min-height: 520px; padding-bottom: 40px; }
+.hero-in { display: grid; grid-template-columns: minmax(0, 1.02fr) minmax(0, 1fr); gap: 32px; align-items: center; min-height: 560px; padding-bottom: 64px; }
 .eyebrow { display: inline-flex; align-items: center; gap: 10px; padding: 7px 14px; border-radius: 999px; background: rgba(139, 92, 246, .14); border: 1px solid rgba(139, 92, 246, .3); color: #d8c8ff; font-size: 13px; font-weight: 600; margin-bottom: 22px; }
 .eyebrow .dot { width: 7px; height: 7px; border-radius: 50%; background: #a78bfa; box-shadow: 0 0 0 4px rgba(167, 139, 250, .25); }
 .hero h1 { font-size: clamp(38px, 4.6vw, 62px); font-weight: 800; letter-spacing: -0.018em; word-spacing: .04em; line-height: 1.1; }
@@ -107,13 +107,14 @@
 .bubble small { display: flex; justify-content: flex-end; align-items: center; gap: 4px; color: #8696a0; font-size: 11px; margin-top: 2px; }
 .bubble small svg { color: #53bdeb; }
 
-.price-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; align-items: stretch; max-width: 1080px; margin: 0 auto; }
+.price-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 22px; align-items: stretch; margin: 0 auto; }
+.plans-note { text-align: center; color: var(--muted); }
 .price { position: relative; display: flex; flex-direction: column; gap: 6px; padding: 32px 28px; border-radius: 22px; background: var(--surface); border: 1px solid var(--line); }
 .price.featured { background: linear-gradient(180deg, #2a1b5e, #171233); border-color: rgba(167, 139, 250, .6); box-shadow: 0 40px 80px -30px rgba(124, 58, 237, .7); transform: translateY(-10px); }
 .price h3 { font-size: 20px; }
 .price-note { color: var(--muted); font-size: 14px; min-height: 42px; }
-.price-amt { margin: 10px 0 18px; } .price-amt b { font-family: var(--font-display); font-size: 46px; letter-spacing: -.03em; } .price-amt span { color: var(--muted); }
-.price ul { list-style: none; padding: 0; margin: 0 0 28px; display: grid; gap: 12px; flex: 1; }
+.price-amt { margin: 10px 0 18px; } .price-amt b { font-family: var(--font-display); font-size: 40px; letter-spacing: -.03em; } .price-amt span { color: var(--muted); white-space: nowrap; }
+.price ul { list-style: none; padding: 0; margin: 0 0 28px; display: grid; gap: 12px; flex: 1; align-content: start; }
 .price li { display: flex; gap: 10px; align-items: center; color: #ddd9f2; }
 .price li svg { color: #a78bfa; flex-shrink: 0; }
 .badge { position: absolute; top: -13px; left: 50%; transform: translateX(-50%); background: var(--grad); color: #fff; padding: 4px 14px; border-radius: 999px; font-size: 12.5px; font-weight: 700; box-shadow: var(--glow); }
@@ -196,3 +197,13 @@
   .stat { flex-direction: column; text-align: center; gap: 8px; }
   .l-nav-cta .btn-primary { min-height: 38px; padding: 0 14px; }
 }
+
+.loc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 22px; max-width: 900px; margin: 0 auto; }
+.loc-card { padding: 28px; border-radius: 22px; background: var(--surface); border: 1px solid var(--line); display: grid; gap: 10px; align-content: start; }
+.loc-ico { width: 46px; height: 46px; border-radius: 14px; background: var(--grad); color: #fff; display: inline-flex; align-items: center; justify-content: center; box-shadow: var(--glow); }
+.loc-card h3 { font-size: 20px; margin-top: 6px; }
+.loc-addr { color: var(--muted); }
+.loc-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+
+.pop-in { animation: popin .6s cubic-bezier(.2,.7,.2,1) var(--d, 0ms) both; }
+@keyframes popin { from { opacity: 0; transform: translateY(18px); } }

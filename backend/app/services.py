@@ -10,14 +10,15 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from .database import PHOTO_DIR
-from .models import Member, Membership, Payment, Plan, Setting
+from .models import Location, Member, MemberEvent, Membership, Payment, Plan, Setting
 
 DUE_WINDOW_DAYS = 7
+LAPSED_DAYS = 60  # expired this long ago and never renewed -> suggest marking inactive
 MAX_PHOTO_BYTES = 8 * 1024 * 1024
 PAYMENT_MODES = ("Cash", "UPI", "Card", "Bank transfer")
 
 DEFAULT_SETTINGS = {
-    "gym_name": "FitTrack Gym",
+    "gym_name": "RS Arnold Gym",
     "whatsapp_number": "",
     "address": "",
     "upi_id": "",
@@ -86,7 +87,8 @@ def photo_url(member: Member) -> str | None:
 def member_summary(member: Member, now: date | None = None) -> dict:
     now = now or today()
     ms = current_membership(member)
-    status, days_left = status_of(ms.end_date if ms else None, now)
+    membership_status, days_left = status_of(ms.end_date if ms else None, now)
+    status = "inactive" if member.inactive else membership_status
     total, paid, balance = money(member)
     return {
         "id": member.id,
@@ -101,6 +103,17 @@ def member_summary(member: Member, now: date | None = None) -> dict:
         "end_date": ms.end_date if ms else None,
         "days_left": days_left,
         "status": status,
+        "membership_status": membership_status,
+        "lapsed": (
+            not member.inactive
+            and membership_status == "expired"
+            and days_left is not None
+            and days_left <= -LAPSED_DAYS
+        ),
+        "location_id": member.location_id,
+        "location_name": member.location.name if member.location else None,
+        "inactive_on": member.inactive_on,
+        "inactive_reason": member.inactive_reason,
         "fee_total": total,
         "paid": paid,
         "balance": balance,
@@ -108,7 +121,7 @@ def member_summary(member: Member, now: date | None = None) -> dict:
 
 
 def members_with_relations(db: Session) -> list[Member]:
-    stmt = select(Member).options(selectinload(Member.memberships), selectinload(Member.payments))
+    stmt = select(Member).options(selectinload(Member.memberships), selectinload(Member.payments), selectinload(Member.location))
     return list(db.scalars(stmt))
 
 
@@ -116,16 +129,41 @@ def load_member(db: Session, member_id: int) -> Member:
     stmt = (
         select(Member)
         .where(Member.id == member_id)
+        .execution_options(populate_existing=True)
         .options(
             selectinload(Member.memberships),
             selectinload(Member.payments),
             selectinload(Member.reminders),
+            selectinload(Member.events),
+            selectinload(Member.location),
         )
     )
     member = db.scalars(stmt).first()
     if member is None:
         raise HTTPException(404, "Member not found")
     return member
+
+
+def default_location(db: Session) -> Location:
+    loc = db.scalars(select(Location).where(Location.active).order_by(Location.id)).first()
+    if loc is None:
+        loc = Location(name="Main location")
+        db.add(loc)
+        db.flush()
+    return loc
+
+
+def get_location(db: Session, location_id: int | None) -> Location:
+    if location_id is None:
+        return default_location(db)
+    loc = db.get(Location, location_id)
+    if loc is None or not loc.active:
+        raise HTTPException(404, "Location not found")
+    return loc
+
+
+def log_event(db: Session, member: Member, kind: str, on_date: date, note: str | None = None) -> None:
+    db.add(MemberEvent(member_id=member.id, kind=kind, on_date=on_date, note=note))
 
 
 def add_membership(db: Session, member: Member, plan: Plan, start: date) -> Membership:

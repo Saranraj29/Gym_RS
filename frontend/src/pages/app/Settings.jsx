@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Database, Layers, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Database, MapPin, Pencil, Phone, Plus, Trash2 } from 'lucide-react'
 import { api } from '../../api'
 import { useFetch } from '../../hooks'
 import { useApp } from '../../context'
@@ -34,14 +34,44 @@ function PlanModal({ plan, onClose, onDone }) {
   )
 }
 
+function LocationModal({ loc, onClose, onDone }) {
+  const toast = useToast()
+  const [f, setF] = useState({ name: loc?.name || '', address: loc?.address || '', phone: loc?.phone || '' })
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+  const submit = async (e) => {
+    e.preventDefault()
+    setBusy(true); setErr('')
+    const body = { name: f.name.trim(), address: f.address.trim() || null, phone: f.phone.trim() || null }
+    try {
+      if (loc) await api.updateLocation(loc.id, body); else await api.createLocation(body)
+      toast.success(loc ? 'Location updated' : 'Location added')
+      onDone()
+    } catch (e2) { setErr(e2.message); setBusy(false) }
+  }
+  return (
+    <Modal open onClose={onClose} title={loc ? `Edit ${loc.name}` : 'New location'}
+      footer={<><button className="btn btn-ghost" type="button" onClick={onClose}>Cancel</button><button form="loc-form" className="btn btn-primary" disabled={busy}>{busy ? 'Saving…' : 'Save location'}</button></>}>
+      <form id="loc-form" onSubmit={submit} className="form-grid">
+        <div className="field full"><label htmlFor="lc-name">Location name</label><input id="lc-name" className="input" required value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="e.g. Anna Nagar" /></div>
+        <div className="field full"><label htmlFor="lc-addr">Address</label><input id="lc-addr" className="input" value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} /></div>
+        <div className="field full"><label htmlFor="lc-phone">Phone / WhatsApp</label><input id="lc-phone" className="input" inputMode="tel" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} placeholder="98765 43210" /></div>
+        {err && <div className="banner error full" role="alert">{err}</div>}
+      </form>
+    </Modal>
+  )
+}
+
 export default function Settings() {
   const toast = useToast()
-  const { settings, reloadSettings } = useApp()
+  const { settings, reloadSettings, locations, reloadLocations } = useApp()
   const plans = useFetch(() => api.plans(), [])
   const [f, setF] = useState(null)
   const [modal, setModal] = useState(null)
   const [busy, setBusy] = useState(false)
   const [del, setDel] = useState(null)
+  const [locModal, setLocModal] = useState(null)
+  const [locDel, setLocDel] = useState(null)
 
   useEffect(() => { if (settings && f === null && settings.whatsapp_number !== undefined) setF({ ...settings }) }, [settings, f])
 
@@ -57,6 +87,9 @@ export default function Settings() {
   }
   const removePlan = async () => {
     try { await api.deletePlan(del.id); toast.success(`${del.name} removed`); setDel(null); plans.reload() } catch (e) { toast.error(e.message) }
+  }
+  const removeLocation = async () => {
+    try { await api.deleteLocation(locDel.id); toast.success(`${locDel.name} removed`); setLocDel(null); reloadLocations() } catch (e) { toast.error(e.message); setLocDel(null) }
   }
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
 
@@ -84,6 +117,25 @@ export default function Settings() {
             </article>
           ))}
           <button className="card plan-card add" onClick={() => setModal({})}><Plus size={24} /><b>New plan</b></button>
+        </div>
+      </section>
+
+      <section aria-label="Locations">
+        <h2 style={{ fontSize: 17, marginBottom: 12 }}>Locations</h2>
+        <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
+          {locations.map((l) => (
+            <article key={l.id} className="card plan-card">
+              <span className="nm" style={{ display: 'flex', alignItems: 'center', gap: 8 }}><MapPin size={18} style={{ color: 'var(--primary-text)' }} />{l.name}</span>
+              <span className="sub">{l.address || 'No address yet'}</span>
+              {l.phone && <span className="sub" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Phone size={14} />{l.phone}</span>}
+              <span className="sub"><b style={{ color: 'var(--text)' }}>{l.members}</b> member{l.members === 1 ? '' : 's'}</span>
+              <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                <button className="btn btn-ghost btn-sm" style={{ flex: 1 }} onClick={() => setLocModal(l)}><Pencil /> Edit location</button>
+                <button className="btn btn-danger btn-sm btn-icon" onClick={() => setLocDel(l)} aria-label={`Delete ${l.name}`}><Trash2 size={16} /></button>
+              </div>
+            </article>
+          ))}
+          <button className="card plan-card add" onClick={() => setLocModal({})}><Plus size={24} /><b>Add location</b></button>
         </div>
       </section>
 
@@ -138,6 +190,11 @@ export default function Settings() {
         </div>
       </section>
 
+      {locModal && <LocationModal loc={locModal.id ? locModal : null} onClose={() => setLocModal(null)} onDone={() => { setLocModal(null); reloadLocations() }} />}
+      <Modal open={!!locDel} onClose={() => setLocDel(null)} title={`Remove ${locDel?.name}?`}
+        footer={<><button className="btn btn-ghost" onClick={() => setLocDel(null)}>Cancel</button><button className="btn btn-danger" onClick={removeLocation}>Remove location</button></>}>
+        <p style={{ color: 'var(--muted)' }}>A location can only be removed when it has no members — move them to another location first (Edit member → Location).</p>
+      </Modal>
       {modal && <PlanModal plan={modal.id ? modal : null} onClose={() => setModal(null)} onDone={() => { setModal(null); plans.reload() }} />}
       <Modal open={!!del} onClose={() => setDel(null)} title={`Remove ${del?.name}?`}
         footer={<><button className="btn btn-ghost" onClick={() => setDel(null)}>Cancel</button><button className="btn btn-danger" onClick={removePlan}>Remove plan</button></>}>

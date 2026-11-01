@@ -19,9 +19,9 @@ function addDays(iso, n) {
 export default function AddMember() {
   const nav = useNavigate()
   const toast = useToast()
-  const { settings, templates } = useApp()
+  const { settings, templates, locations, locParam } = useApp()
   const plans = useFetch(() => api.plans(), [])
-  const [f, setF] = useState({ name: '', phone: '', gender: '', dob: '', batch: '', trainer: '', emergency_name: '', emergency_phone: '', join_date: todayISO() })
+  const [f, setF] = useState({ name: '', phone: '', gender: '', dob: '', batch: '', trainer: '', emergency_name: '', emergency_phone: '', join_date: todayISO(), location_id: '' })
   const [photo, setPhoto] = useState(null)
   const [planId, setPlanId] = useState(null)
   const [paid, setPaid] = useState(null)
@@ -32,6 +32,8 @@ export default function AddMember() {
   const [serverErr, setServerErr] = useState(null)
 
   const list = plans.data || []
+  const locId = Number(f.location_id) || locParam || locations[0]?.id || null
+  const locName = locations.find((l) => l.id === locId)?.name
   const plan = list.find((p) => p.id === planId) || list[1] || list[0]
   const set = (k) => (e) => { setF({ ...f, [k]: e.target.value }); setErrors({ ...errors, [k]: undefined }) }
   const paidNum = paid === null ? plan?.price || 0 : Number(paid) || 0
@@ -58,7 +60,7 @@ export default function AddMember() {
     const win = welcome ? window.open('about:blank', '_blank') : null
     try {
       const body = Object.fromEntries(Object.entries(f).map(([k, v]) => [k, v === '' ? null : v]))
-      const m = await api.createMember({ ...body, plan_id: plan.id, paid_amount: paidNum, payment_mode: mode })
+      const m = await api.createMember({ ...body, location_id: locId, plan_id: plan.id, paid_amount: paidNum, payment_mode: mode })
       if (photo) await api.uploadPhoto(m.id, photo).catch(() => toast.error('Member saved, but the photo could not be uploaded'))
       if (win) {
         const text = fillTemplate(templates?.en?.welcome || '', { name: m.name, plan: plan.name, date: fmtDate(m.end_date, false), gym: settings.gym_name })
@@ -98,6 +100,8 @@ export default function AddMember() {
               </div>
               <div className="field"><label htmlFor="a-gender">Gender</label>
                 <select id="a-gender" className="select" value={f.gender} onChange={set('gender')}><option value="">Select</option><option>Male</option><option>Female</option><option>Other</option></select></div>
+              <div className="field full"><label htmlFor="a-loc">Location</label>
+                <select id="a-loc" className="select" value={locId || ''} onChange={set('location_id')}>{locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select></div>
               <div className="field"><label htmlFor="a-dob">Date of birth</label><input id="a-dob" type="date" className="input" value={f.dob} max={todayISO()} onChange={set('dob')} /></div>
               <div className="field"><label htmlFor="a-batch">Batch time</label>
                 <select id="a-batch" className="select" value={f.batch} onChange={set('batch')}><option value="">Select</option>{BATCHES.map((b) => <option key={b}>{b}</option>)}</select></div>
@@ -133,6 +137,7 @@ export default function AddMember() {
         <aside className="summary" aria-label="Summary">
           <h2>Summary</h2>
           <div>
+            <div className="stat-line"><span>Location</span><b>{locName || '—'}</b></div>
             <div className="stat-line"><span>Plan</span><b>{plan?.name || '—'}</b></div>
             <div className="stat-line"><span>Starts</span><b>{fmtDate(f.join_date)}</b></div>
             <div className="stat-line"><span>Ends</span><b>{endDate ? fmtDate(endDate) : '—'}</b></div>

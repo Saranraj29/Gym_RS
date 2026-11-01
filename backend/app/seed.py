@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from . import services as svc
 from .database import PHOTO_DIR
-from .models import Member, Membership, Payment, Plan, ReminderLog, Setting
+from .models import Location, Member, MemberEvent, Membership, Payment, Plan, ReminderLog, Setting
 
 DEFAULT_PLANS = [("Monthly", 1200, 30), ("Quarterly", 3300, 90), ("Half-yearly", 6000, 180), ("Yearly", 10000, 365)]
 
@@ -26,8 +26,10 @@ NAMES = [
     ("Archana Dev", "F"), ("Mohan Das", "M"), ("Tamilselvi M", "F"), ("Yuvaraj K", "M"),
     ("Nisha Fernando", "F"), ("Sanjay Reddy", "M"), ("Bhavani Shankar", "F"), ("Hari Prasad", "M"),
     ("Ishwarya Rao", "F"), ("Kishore Kumar", "M"), ("Madhavi Nair", "F"), ("Tarun Joseph", "M"),
-    ("Sandhya Paul", "F"), ("Ilango Raman", "M"),
+    ("Sandhya Paul", "F"), ("Ilango Raman", "M"), ("Balaji Subbu", "M"), ("Gayathri Nair", "F"),
+    ("Rohit Verma", "M"), ("Preethi Anand", "F"),
 ]
+INACTIVE_REASONS = ["Not attending", "Not attending", "Moved away", "Financial"]
 BATCHES = ["6 – 7 AM", "7 – 8 AM", "6 – 7 PM", "7 – 8 PM"]
 TRAINERS = ["Coach Arjun", "Coach Meera", "Coach Vikram"]
 SKIN = [(236, 190, 156), (214, 160, 120), (190, 135, 98), (160, 108, 76), (128, 86, 60)]
@@ -77,14 +79,16 @@ def seed_demo(db: Session, plans: list[Plan]) -> None:
     rnd = random.Random(7)
     now = svc.today()
     by_name = {p.name: p for p in plans}
-    plan_order = ["Monthly"] * 17 + ["Quarterly"] * 15 + ["Half-yearly"] * 8 + ["Yearly"] * 6
+    locations = list(db.scalars(select(Location).where(Location.active).order_by(Location.id)))
+    plan_order = ["Monthly"] * 19 + ["Quarterly"] * 16 + ["Half-yearly"] * 9 + ["Yearly"] * 6
     rnd.shuffle(plan_order)
 
     # days_left of each member's current membership: 7 due, 6 expired, rest active
-    left = [0, 2, 3, 4, 5, 6, 7] + [-3, -9, -14, -20, -28, -41] + []
+    left = [0, 2, 3, 4, 5, 6, 7] + [-3, -9, -14, -20, -28, -41] + [-72, -88] + [-95, -118, -140, -170]
     left += [rnd.randint(9, 29) for _ in range(len(NAMES) - len(left))]
     rnd.shuffle(left)
-    partial = {i for i in rnd.sample(range(len(NAMES)), 11)}
+    inactive_idx = {i for i in range(len(NAMES)) if left[i] <= -95}  # long-lapsed members -> marked inactive
+    partial = {i for i in rnd.sample(range(len(NAMES)), 11) if i not in inactive_idx}
     newcomers = {i for i in rnd.sample(range(len(NAMES)), 12) if left[i] > 8 and i not in partial}
     modes = ["Cash", "UPI", "UPI", "UPI", "Card", "Bank transfer"]
 
@@ -118,9 +122,11 @@ def seed_demo(db: Session, plans: list[Plan]) -> None:
             batch=rnd.choice(BATCHES),
             trainer=rnd.choice(TRAINERS),
             joined_on=joined,
+            location_id=locations[0 if rnd.random() < 0.58 else 1].id,
         )
         db.add(member)
         db.flush()
+        db.add(MemberEvent(member_id=member.id, kind="joined", on_date=joined, note=None))
         if rnd.random() < 0.68:
             fname = f"m{member.id}_demo.jpg"
             make_demo_avatar(PHOTO_DIR / fname, i, gender)
@@ -136,6 +142,11 @@ def seed_demo(db: Session, plans: list[Plan]) -> None:
             if paid:
                 db.add(Payment(member=member, membership_id=ms.id, amount=int(paid), mode=rnd.choice(modes), paid_on=min(st, now)))
 
+        if i in inactive_idx:
+            member.inactive = True
+            member.inactive_on = end + timedelta(days=rnd.randint(20, 45))
+            member.inactive_reason = INACTIVE_REASONS[i % len(INACTIVE_REASONS)]
+            db.add(MemberEvent(member_id=member.id, kind="inactive", on_date=member.inactive_on, note=member.inactive_reason))
         if dl <= 7 and rnd.random() < 0.7:
             db.add(ReminderLog(member_id=member.id, kind="renewal", sent_on=now - timedelta(days=3)))
 

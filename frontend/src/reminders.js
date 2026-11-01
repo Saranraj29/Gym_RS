@@ -17,7 +17,7 @@ export function openPendingTab() {
 }
 
 export function kindFor(m) {
-  if (m.status === 'expired') return 'expired'
+  if (m.status === 'expired' || m.status === 'inactive') return 'expired'
   if (m.status === 'due') return 'renewal'
   if (m.balance > 0) return 'fee'
   return 'renewal'
