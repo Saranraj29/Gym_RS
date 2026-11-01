@@ -102,10 +102,10 @@
 .chat-head { display: flex; align-items: center; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
 .chat-head b { display: block; font-size: 15px; } .chat-head small { color: #4ade80; font-size: 12.5px; }
 .chat-av { width: 40px; height: 40px; border-radius: 50%; background: var(--grad); display: inline-flex; align-items: center; justify-content: center; font-weight: 800; }
-.bubble { align-self: flex-start; max-width: 88%; padding: 10px 14px 6px; border-radius: 4px 16px 16px 16px; background: #202c33; font-size: 14px; line-height: 1.5; color: #e9edef; }
-.bubble.me { align-self: flex-end; background: #005c4b; border-radius: 16px 4px 16px 16px; }
-.bubble small { display: flex; justify-content: flex-end; align-items: center; gap: 4px; color: #8696a0; font-size: 11px; margin-top: 2px; }
-.bubble small svg { color: #53bdeb; }
+.chat .bubble { align-self: flex-start; max-width: 88%; padding: 10px 14px 6px; border-radius: 4px 16px 16px 16px; background: #202c33; font-size: 14px; line-height: 1.5; color: #e9edef; }
+.chat .bubble.me { align-self: flex-end; background: #005c4b; border-radius: 16px 4px 16px 16px; }
+.chat .bubble small { display: flex; justify-content: flex-end; align-items: center; gap: 4px; color: #8696a0; font-size: 11px; margin-top: 2px; }
+.chat .bubble small svg { color: #53bdeb; }
 
 .price-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 22px; align-items: stretch; margin: 0 auto; }
 .plans-note { text-align: center; color: var(--muted); }
@@ -141,9 +141,6 @@
 .contact-list li { display: flex; align-items: center; gap: 12px; color: #ddd9f2; }
 .contact-list svg { color: #a78bfa; }
 .contact-form { padding: 28px; border-radius: 22px; background: var(--surface); border: 1px solid var(--line-strong); display: grid; gap: 18px; box-shadow: var(--shadow); }
-.sent { text-align: center; padding: 28px 8px; display: grid; gap: 10px; justify-items: center; }
-.sent span { width: 60px; height: 60px; border-radius: 20px; background: rgba(52, 211, 153, .15); color: #4ade80; display: inline-flex; align-items: center; justify-content: center; }
-.sent p { color: var(--muted); }
 
 .cta-band { padding: 0 0 100px; }
 .cta-in { text-align: center; padding: 64px 24px; border-radius: 28px; background: radial-gradient(600px 300px at 80% 0%, rgba(236, 72, 153, .35), transparent 60%), linear-gradient(135deg, #5b21b6, #7c3aed 55%, #9333ea); box-shadow: 0 50px 100px -40px rgba(124, 58, 237, .8); display: grid; gap: 14px; justify-items: center; }

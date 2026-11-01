@@ -108,7 +108,7 @@ export default function Reminders() {
               {people.map((p) => {
                 const done = sent[kind + p.id]
                 return (
-                  <div key={p.id} className={'recipient' + (done === true ? ' sent' : '')}>
+                  <div key={p.id} className={'recipient' + (done === true ? ' is-done' : '')}>
                     <input type="checkbox" id={`r-${kind}-${p.id}`} checked={picked[kind + p.id] !== false} onChange={(e) => setPicked({ ...picked, [kind + p.id]: e.target.checked })} aria-label={`Select ${p.name}`} />
                     <div className="person">
                       <Avatar name={p.name} src={p.photo_url} size={40} />
