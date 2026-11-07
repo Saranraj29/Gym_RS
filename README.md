@@ -33,6 +33,7 @@ A complete gym management app: members (with **photos**), plans, fees & balances
   Business-initiated messages must use **pre-approved templates** — the app lists the exact template names and bodies
   to create in Meta (*Plans & settings → setup guide*). Try it safely first with `WHATSAPP_DRY_RUN=true`.
   Credentials live only in the environment, never in the database or the repo.
+  **Step-by-step account setup: [`docs/whatsapp-setup.md`](docs/whatsapp-setup.md).**
 
 ## Run with Docker (recommended)
 
